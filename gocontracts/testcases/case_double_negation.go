@@ -1,5 +1,6 @@
 package testcases
 
+// DoubleNegation tests that condition expressions are correctly checked in If statement with double negation.
 var DoubleNegation = Case{
 	ID: "double_negation",
 	Text: `package somepkg

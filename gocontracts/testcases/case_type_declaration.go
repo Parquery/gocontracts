@@ -1,5 +1,7 @@
 package testcases
 
+// TypeDeclaration tests that type declarations are left unchanged even though they might contain contract conditions
+// in the description.
 var TypeDeclaration = Case{
 	ID: "type_declaration",
 	Text: `package somepkg

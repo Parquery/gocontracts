@@ -1,5 +1,7 @@
 package testcases
 
+// SemicolonAfterPostcondition tests that remainder of the code is handled correctly when it is separated by
+// a semicolon from the post-condition.
 var SemicolonAfterPostcondition = Case{
 	ID: "semicolon_after_postcondition",
 	Text: `package somepkg

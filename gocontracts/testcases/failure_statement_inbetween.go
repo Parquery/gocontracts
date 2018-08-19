@@ -1,6 +1,7 @@
 package testcases
 
-var FailureStatementInbetween= Failure{
+// FailureStatementInbetween tests that we detect when there is a statement between the pre- and post-condition blocks.
+var FailureStatementInbetween = Failure{
 	ID: "statement_inbetween",
 	Text: `package somepkg
 
@@ -31,4 +32,4 @@ func SomeFunc(x int, y int) (result string, err error) {
 	return
 }
 `,
-	Error:"unexpected statement between the pre- and post-condition blocks in function SomeFunc on line 18"}
+	Error: "unexpected statement between the pre- and post-condition blocks in function SomeFunc on line 18"}

@@ -1,5 +1,6 @@
 package testcases
 
+// HasOnlyComment tests that conditions are correctly generated in a function whose body contains only a comment.
 var HasOnlyComment = Case{
 	ID: "has_only_comment",
 	Text: `package somepkg
@@ -55,4 +56,3 @@ func SomeFunc(x int, y int) (result string, err error) {
 	// Some comment
 }
 `}
-
