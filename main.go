@@ -31,6 +31,10 @@ func run() (retcode int) {
 	pth := flag.Arg(0)
 
 	data, err := ioutil.ReadFile(pth)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to read: %s\n", err)
+		return 1
+	}
 
 	text := string(data)
 
