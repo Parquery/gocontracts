@@ -1,5 +1,7 @@
 package testcases
 
+// DoubleNegations tests that conditions are correctly checked in Switch statement when the conditions contain
+// a negation which is then double-negated in the case expression.
 var DoubleNegations = Case{
 	ID: "double_negations",
 	Text: `package somepkg
