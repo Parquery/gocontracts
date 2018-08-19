@@ -94,7 +94,8 @@ func TestProcessFailures(t *testing.T) {
 		}
 
 		if failure.Error != err.Error() {
-			t.Fatalf("Expected a failure error %#v, but got %#v", failure.Error, err.Error())
+			t.Fatalf("Expected a failure error %#v in the failure case %s, "+
+				"but got %#v", failure.Error, failure.ID, err.Error())
 		}
 	}
 }
