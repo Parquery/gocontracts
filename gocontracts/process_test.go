@@ -21,7 +21,9 @@ var cases = []testcases.Case{
 	testcases.MultipleFunctions,
 	testcases.DoubleNegation,
 	testcases.DoubleNegations,
-	testcases.NoConditions}
+	testcases.NoConditions,
+	testcases.NoFunction,
+	testcases.TypeDeclaration}
 
 var failures = []testcases.Failure{
 	testcases.FailureStatementInbetween,
@@ -30,7 +32,9 @@ var failures = []testcases.Failure{
 	testcases.FailureNoIfInPrecondition,
 	testcases.FailureNoDeferInPostcondition,
 	testcases.FailureNoStatementAfterPrecondtion,
-	testcases.FailureNoStatementAfterPostcondtion}
+	testcases.FailureNoStatementAfterPostcondtion,
+	testcases.FailureUnmatchedFunctionInPrecondition,
+	testcases.FailureUnmatchedFunctionInPostcondition}
 
 // meld runs a meld to compare the expected against the got.
 func meld(expected string, got string) (err error) {
@@ -131,7 +135,8 @@ func TestNotCondStr(t *testing.T) {
 		{condStr: "!(x)", expected: "x"},
 		{condStr: "! ( x )", expected: "x"},
 		{condStr: "x", expected: "!(x)"},
-		{condStr: "(x)", expected: "!(x)"}}
+		{condStr: "(x)", expected: "!(x)"},
+		{condStr: "", expected: ""}}
 
 	for _, tc := range testCases {
 		got := notCondStr(tc.condStr)
