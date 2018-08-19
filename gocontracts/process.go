@@ -118,110 +118,140 @@ type condPositions struct {
 	nextNodePos token.Pos
 }
 
-// findBlocks searches for the start and end of the pre-condition and post-condition block, respectively.
-func findBlocks(
-	fset *token.FileSet, fn *ast.FuncDecl, cmtMap ast.CommentMap) (positions condPositions, err error) {
-	bodyCmtMap := cmtMap.Filter(fn.Body)
+// parsePreconditions parses the pre-conditions defined in the function body.
+func parsePreconditions(
+	fset *token.FileSet, fn *ast.FuncDecl, cmtGrp *ast.CommentGroup) (preStart, preEnd token.Pos, err error) {
 
-	positions.preStart = token.NoPos
-	positions.preEnd = token.NoPos
+	preStart = cmtGrp.Pos()
 
-	positions.postStart = token.NoPos
-	positions.postEnd = token.NoPos
+	cmtText := strings.Trim(cmtGrp.Text(), "\n \t")
 
-	positions.nextNodePos = token.NoPos
+	// Check that there are no statements between the pre-condition comment in the function body
+	if len(fn.Body.List) > 0 && fn.Body.List[0].Pos() < preStart {
+		err = fmt.Errorf("unexpected statement before the comment %#v in function %s on line %d",
+			cmtText, fn.Name.String(), fset.Position(fn.Body.List[0].Pos()).Line)
+		return
+	}
+
+	// Check that there is a block following the comment
+	var stmtAfterCmt ast.Stmt
+	for _, stmt := range fn.Body.List {
+		if stmt.Pos() > preStart {
+			stmtAfterCmt = stmt
+			break
+		}
+	}
+
+	if stmtAfterCmt == nil {
+		err = fmt.Errorf("found no statement after the comment %v in function %s on line %d",
+			cmtText, fn.Name.String(), fset.Position(preStart).Line)
+		return
+	}
+
+	switch {
+	case strings.HasPrefix(cmtText, "Pre-conditions"):
+		// Expect multiple pre-conditions given the comment and hence a switch
+		_, ok := stmtAfterCmt.(*ast.SwitchStmt)
+
+		if !ok {
+			err = fmt.Errorf(
+				"expected a 'switch' statement after the comment %#v in function %s on line %d",
+				cmtText, fn.Name.String(), fset.Position(stmtAfterCmt.Pos()).Line)
+			return
+		}
+
+	case strings.HasPrefix(cmtText, "Pre-condition"):
+		// Expect a single pre-condition given the comment and hence a
+		_, ok := stmtAfterCmt.(*ast.IfStmt)
+		if !ok {
+			err = fmt.Errorf(
+				"expected an 'if' statement after the comment %#v in function %s on line %d",
+				cmtText, fn.Name.String(), fset.Position(stmtAfterCmt.Pos()).Line)
+			return
+		}
+	default:
+		panic(fmt.Sprintf("Unhandled comment text: %#v", cmtText))
+	}
+
+	preEnd = stmtAfterCmt.End()
+
+	return
+}
+
+// parsePostconditions parses the post-conditions defined in the function body.
+func parsePostconditions(
+	fset *token.FileSet, fn *ast.FuncDecl, cmtGrp *ast.CommentGroup) (postStart, postEnd token.Pos, err error) {
+	postStart = cmtGrp.Pos()
+
+	cmtText := strings.Trim(cmtGrp.Text(), "\n \t")
+
+	// Check that there is a defer following the comment
+	var stmtAfterCmt ast.Stmt
+	for _, stmt := range fn.Body.List {
+		if stmt.Pos() > postStart {
+			stmtAfterCmt = stmt
+			break
+		}
+	}
+
+	if stmtAfterCmt == nil {
+		err = fmt.Errorf("found no statement after the comment %#v in function %s on line %d",
+			cmtText, fn.Name.String(), fset.Position(cmtGrp.Pos()).Line)
+		return
+	}
+
+	deferStmt, ok := stmtAfterCmt.(*ast.DeferStmt)
+	if !ok {
+		err = fmt.Errorf("expected a defer statement after the comment %#v in function %s on line %d",
+			cmtText, fn.Name.String(), fset.Position(stmtAfterCmt.Pos()).Line)
+		return
+	}
+
+	postEnd = deferStmt.End()
+	return
+}
+
+// parseConditions parses the pre and post-conditions from the function body.
+// bodyCmtMap should contain only the comments written in the function body.
+func parseConditions(
+	fset *token.FileSet, fn *ast.FuncDecl,
+	bodyCmtMap ast.CommentMap) (preStart, preEnd, postStart, postEnd token.Pos, err error) {
 
 	for _, cmtGrp := range bodyCmtMap.Comments() {
 		cmtText := strings.Trim(cmtGrp.Text(), "\n \t")
 		switch {
 		case preconditionRe.MatchString(cmtText):
-			positions.preStart = cmtGrp.Pos()
-
-			// Check that there are no statements between the pre-condition comment in the function body
-			if len(fn.Body.List) > 0 && fn.Body.List[0].Pos() < positions.preStart {
-				err = fmt.Errorf("unexpected statement before the comment %#v in function %s on line %d",
-					cmtText, fn.Name.String(), fset.Position(fn.Body.List[0].Pos()).Line)
+			preStart, preEnd, err = parsePreconditions(fset, fn, cmtGrp)
+			if err != nil {
 				return
 			}
-
-			// Check that there is a block following the comment
-			var stmtAfterCmt ast.Stmt
-			for _, stmt := range fn.Body.List {
-				if stmt.Pos() > positions.preStart {
-					stmtAfterCmt = stmt
-					break
-				}
-			}
-
-			if stmtAfterCmt == nil {
-				err = fmt.Errorf("found no statement after the comment %v in function %s on line %d",
-					cmtText, fn.Name.String(), fset.Position(positions.preStart).Line)
-				return
-			}
-
-			switch {
-			case strings.HasPrefix(cmtText, "Pre-conditions"):
-				// Expect multiple pre-conditions given the comment and hence a switch
-				_, ok := stmtAfterCmt.(*ast.SwitchStmt)
-
-				if !ok {
-					err = fmt.Errorf(
-						"expected a 'switch' statement after the comment %#v in function %s on line %d",
-						cmtText, fn.Name.String(), fset.Position(stmtAfterCmt.Pos()).Line)
-					return
-				}
-
-			case strings.HasPrefix(cmtText, "Pre-condition"):
-				// Expect a single pre-condition given the comment and hence a
-				_, ok := stmtAfterCmt.(*ast.IfStmt)
-				if !ok {
-					err = fmt.Errorf(
-						"expected an 'if' statement after the comment %#v in function %s on line %d",
-						cmtText, fn.Name.String(), fset.Position(stmtAfterCmt.Pos()).Line)
-					return
-				}
-			default:
-				panic(fmt.Sprintf("Unhandled comment text: %#v", cmtText))
-			}
-
-			positions.preEnd = stmtAfterCmt.End()
 
 		case postconditionRe.MatchString(cmtText):
-			positions.postStart = cmtGrp.Pos()
-
-			// Check that there is a defer following the comment
-			var stmtAfterCmt ast.Stmt
-			for _, stmt := range fn.Body.List {
-				if stmt.Pos() > positions.postStart {
-					stmtAfterCmt = stmt
-					break
-				}
-			}
-
-			if stmtAfterCmt == nil {
-				err = fmt.Errorf("found no statement after the comment %#v in function %s on line %d",
-					cmtText, fn.Name.String(), fset.Position(cmtGrp.Pos()).Line)
+			postStart, postEnd, err = parsePostconditions(fset, fn, cmtGrp)
+			if err != nil {
 				return
 			}
-
-			deferStmt, ok := stmtAfterCmt.(*ast.DeferStmt)
-			if !ok {
-				err = fmt.Errorf("expected a defer statement after the comment %#v in function %s on line %d",
-					cmtText, fn.Name.String(), fset.Position(stmtAfterCmt.Pos()).Line)
-				return
-			}
-
-			positions.postEnd = deferStmt.End()
 
 		default:
 			// pass
 		}
 	}
 
+	return
+}
+
+// findBlocks searches for the start and end of the pre-condition and post-condition block, respectively.
+func findBlocks(
+	fset *token.FileSet, fn *ast.FuncDecl, cmtMap ast.CommentMap) (p condPositions, err error) {
+
+	bodyCmtMap := cmtMap.Filter(fn.Body)
+
+	p.preStart, p.preEnd, p.postStart, p.postEnd, err = parseConditions(fset, fn, bodyCmtMap)
+
 	// Check that there are no statements between pre-end and post-start
-	if positions.preStart != -1 && positions.postStart != -1 {
+	if p.preStart != -1 && p.postStart != -1 {
 		for _, stmt := range fn.Body.List {
-			if stmt.Pos() >= positions.preEnd && stmt.Pos() < positions.postStart {
+			if stmt.Pos() >= p.preEnd && stmt.Pos() < p.postStart {
 				err = fmt.Errorf(
 					"unexpected statement between the pre- and post-condition blocks in function %s on line %d",
 					fn.Name.String(), fset.Position(stmt.Pos()).Line)
@@ -232,18 +262,20 @@ func findBlocks(
 
 	conditionsEnd := token.NoPos
 	switch {
-	case positions.postEnd != token.NoPos:
-		conditionsEnd = positions.postEnd
-	case positions.preEnd != token.NoPos:
-		conditionsEnd = positions.preEnd
+	case p.postEnd != token.NoPos:
+		conditionsEnd = p.postEnd
+	case p.preEnd != token.NoPos:
+		conditionsEnd = p.preEnd
 	default:
 		// pass, conditionsEnd is expected to be a NoPos
 	}
 
 	// Find the next node in statements
+	p.nextNodePos = token.NoPos
+
 	for _, stmt := range fn.Body.List {
 		if stmt.Pos() > conditionsEnd {
-			positions.nextNodePos = stmt.Pos()
+			p.nextNodePos = stmt.Pos()
 			break
 		}
 	}
@@ -251,9 +283,9 @@ func findBlocks(
 	// See if there is a comment before the conditions and the first next statement
 	for _, cmtGrp := range bodyCmtMap.Comments() {
 		if cmtGrp.Pos() > conditionsEnd &&
-			(positions.nextNodePos == token.NoPos || cmtGrp.Pos() < positions.nextNodePos) {
+			(p.nextNodePos == token.NoPos || cmtGrp.Pos() < p.nextNodePos) {
 
-			positions.nextNodePos = cmtGrp.Pos()
+			p.nextNodePos = cmtGrp.Pos()
 			break
 		}
 	}
