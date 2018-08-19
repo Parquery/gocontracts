@@ -469,8 +469,8 @@ func Process(text string) (updated string, err error) {
 		var posts []condition
 		pres, posts, err = parseContracts(name, commentLines)
 		if err != nil {
-			err = fmt.Errorf("failed to parse comments of the function %s: %s",
-				name, err)
+			err = fmt.Errorf("failed to parse comments of the function %s on line %d: %s",
+				name, fset.Position(fn.Doc.Pos()).Line, err)
 			return
 		}
 
