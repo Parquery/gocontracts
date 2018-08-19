@@ -1,5 +1,7 @@
 gocontracts
 ===========
+![build status](https://travis-ci.com/Parquery/gocontracts.svg?branch=master)
+
 
 gocontracts is a tool for 
 [design-by-contract](https://en.wikipedia.org/wiki/Design_by_contract) in Go. 
