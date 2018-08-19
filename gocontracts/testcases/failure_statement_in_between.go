@@ -1,8 +1,8 @@
 package testcases
 
-// FailureStatementInbetween tests that we detect when there is a statement between the pre- and post-condition blocks.
-var FailureStatementInbetween = Failure{
-	ID: "statement_inbetween",
+// FailureStatementInBetween tests that we detect when there is a statement between the pre- and post-condition blocks.
+var FailureStatementInBetween = Failure{
+	ID: "statement_in_between",
 	Text: `package somepkg
 
 // SomeFunc does something.
