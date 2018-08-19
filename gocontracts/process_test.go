@@ -26,7 +26,7 @@ var cases = []testcases.Case{
 	testcases.TypeDeclaration}
 
 var failures = []testcases.Failure{
-	testcases.FailureStatementInbetween,
+	testcases.FailureStatementInBetween,
 	testcases.FailureStatementBefore,
 	testcases.FailureNoSwitchInPrecondition,
 	testcases.FailureNoIfInPrecondition,
