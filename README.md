@@ -2,6 +2,7 @@ gocontracts
 ===========
 ![build status](https://travis-ci.com/Parquery/gocontracts.svg?branch=master)
 [![Coverage Status](https://coveralls.io/repos/github/Parquery/gocontracts/badge.svg?branch=master)](https://coveralls.io/github/Parquery/gocontracts?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Parquery/gocontracts)](https://goreportcard.com/report/github.com/Parquery/gocontracts)
 
 gocontracts is a tool for 
 [design-by-contract](https://en.wikipedia.org/wiki/Design_by_contract) in Go. 
