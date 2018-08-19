@@ -1,0 +1,7 @@
+language: go
+notificaitons:
+  email:
+    recipients: marko.ristin@gmail.com
+    on_success: change
+    on_failure: always
+
