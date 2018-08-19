@@ -47,7 +47,7 @@ script:
     - go list ./... | grep -v vendor | xargs -n1 -I {} -P 4 go test -v -covermode=count -coverprofile=../../../{}/profile.coverprofile {}
 
     # Compile binary
-    - go build
+    - go build ./...
 
 after_success:
     # Merge all coverage reports located in subdirectories and put them under: gover.coverprofile
