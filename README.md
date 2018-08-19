@@ -1,12 +1,12 @@
 gocontracts
 ===========
 
-gocontracts generates pre- and post-condition checks from the function descriptions.
+gocontracts is a tool for 
+[design-by-contract](https://en.wikipedia.org/wiki/Design_by_contract) in Go. 
 
-The main goal is to introduce 
-[design-by-contract](https://en.wikipedia.org/wiki/Design_by_contract) 
-into Go such that the contracts are included in the documentation and 
-automatically reflected in the code.
+It generates pre- and post-condition checks from the function descriptions so 
+that the contracts are included in the documentation and automatically 
+reflected in the code.
 
 Workflow
 --------
