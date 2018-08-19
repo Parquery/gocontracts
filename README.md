@@ -29,6 +29,13 @@ causes a `panic()`. If you need to validate the input, rather than check
 logical pre- and post-conditions of the function, return an `error` and do
 not abuse the contracts.
 
+Related Projects
+================
+At the time of this writing (2018-08-19), we found only a library that
+implemented design-by-contract as functions (https://github.com/lpabon/godbc) and
+a draft implementation based on decorators (https://github.com/ligurio/go-contracts).
+
+None of them allowed us to synchronize the documentation with the code.
 
 Examples
 ========
