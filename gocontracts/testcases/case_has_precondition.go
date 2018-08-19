@@ -1,5 +1,7 @@
 package testcases
 
+// HasPrecondition tests that conditions are correctly generated in a function whose body already contains
+// a pre-condition.
 var HasPrecondition = Case{
 	ID: "has_precondition",
 	Text: `package somepkg

@@ -1,5 +1,7 @@
 package testcases
 
+// CommentAfterPostcondition tests that we correctly handle a function whose body contains a comment following the
+// post-condition.
 var CommentAfterPostcondition = Case{
 	ID: "comment_after_postcondition",
 	Text: `package somepkg

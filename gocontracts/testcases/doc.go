@@ -1,2 +1,2 @@
-// testcases contains files with recorded or phantasized inputs / expected outputs.
+// Package testcases contains files with recorded or imagined inputs and expected outputs / errors.
 package testcases

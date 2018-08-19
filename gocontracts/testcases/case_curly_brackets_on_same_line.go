@@ -1,5 +1,7 @@
 package testcases
 
+// CurlyBracketsOnSameLine tests that condition checks are correctly generated in an empty function where
+// curly brackets are written on the same line.
 var CurlyBracketsOnSameLine = Case{
 	ID: "curly_brackets_on_same_line",
 	Text: `package somepkg
@@ -51,4 +53,3 @@ func SomeFunc(x int, y int) (result string, err error) {
 	}()
 }
 `}
-

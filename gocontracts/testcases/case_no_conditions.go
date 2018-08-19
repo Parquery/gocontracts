@@ -1,5 +1,6 @@
 package testcases
 
+// NoConditions tests that functions without conditions are left unchanged.
 var NoConditions = Case{
 	ID: "no_conditions",
 	Text: `package somepkg

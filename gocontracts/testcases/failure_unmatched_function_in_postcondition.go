@@ -1,5 +1,7 @@
 package testcases
 
+// FailureUnmatchedFunctionInPostcondition tests that we detect when the function name in the post-condition
+// documentation differs from the actual function name.
 var FailureUnmatchedFunctionInPostcondition = Failure{
 	ID: "unmatched_function_in_postcondition",
 	Text: `package somepkg

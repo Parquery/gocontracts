@@ -1,5 +1,7 @@
 package testcases
 
+// FailureNoStatementAfterPostcondtion tests that we correctly detect when post-condition comment is not followed by
+// a statement in the function body.
 var FailureNoStatementAfterPostcondtion = Failure{
 	ID: "no_statement_after_postcondition",
 	Text: `package somepkg
