@@ -41,10 +41,10 @@ func parseContracts(name string, commentLines []string) (pres, posts []condition
 
 		mtchs := requiresRe.FindStringSubmatch(line)
 		if len(mtchs) > 0 {
-			got_name := mtchs[1]
-			if name != got_name {
+			gotName := mtchs[1]
+			if name != gotName {
 				err = fmt.Errorf("expected %#v in \"requires\" line, but got %#v",
-					name, got_name)
+					name, gotName)
 				return
 			}
 
@@ -54,10 +54,10 @@ func parseContracts(name string, commentLines []string) (pres, posts []condition
 
 		mtchs = ensuresRe.FindStringSubmatch(line)
 		if len(mtchs) > 0 {
-			got_name := mtchs[1]
-			if name != got_name {
+			gotName := mtchs[1]
+			if name != gotName {
 				err = fmt.Errorf("expected %#v in \"ensures\" line, but got %#v",
-					name, got_name)
+					name, gotName)
 				return
 			}
 
@@ -330,9 +330,8 @@ func notCondStr(condStr string) string {
 
 	if exprWithParensRe.MatchString(condStr) {
 		return fmt.Sprintf("!%s", strings.Trim(condStr, " \t"))
-	} else {
-		return fmt.Sprintf("!(%s)", strings.Trim(condStr, " \t"))
 	}
+	return fmt.Sprintf("!(%s)", strings.Trim(condStr, " \t"))
 }
 
 // generateCode generates the code of the two blocks.
@@ -474,7 +473,7 @@ func update(text string, updates []funcUpdate, fset *token.FileSet) (updated str
 	return
 }
 
-// process automatically adds (or updates) the blocks for checking the pre- and post-conditions.
+// Process automatically adds (or updates) the blocks for checking the pre- and post-conditions.
 func Process(text string) (updated string, err error) {
 	fset := token.NewFileSet()
 

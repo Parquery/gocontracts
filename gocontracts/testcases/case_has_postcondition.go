@@ -1,5 +1,7 @@
 package testcases
 
+// HasPostcondition tests that conditions are correctly generated in a function whose body already contains
+// a post-condition.
 var HasPostcondition = Case{
 	ID: "has_postcondition",
 	Text: `package somepkg

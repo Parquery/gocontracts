@@ -1,5 +1,7 @@
 package testcases
 
+// NoPreviousConditions tests handling of functions with conditions defined in the documentation, but not yet
+// generated in the function body.
 var NoPreviousConditions = Case{
 	ID: "no_previous_conditions",
 	Text: `package somepkg

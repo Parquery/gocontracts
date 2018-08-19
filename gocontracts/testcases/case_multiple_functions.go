@@ -1,5 +1,6 @@
 package testcases
 
+// MultipleFunctions tests that conditions are correctly generated in a file containing more than one function.
 var MultipleFunctions = Case{
 	ID: "multiple_functions",
 	Text: `package somepkg

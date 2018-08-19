@@ -1,6 +1,8 @@
 package testcases
 
-var FailureNoIfInPrecondition= Failure{
+// FailureNoIfInPrecondition tests that we correctly detect when pre-condition comment is not followed by an If
+// statement in the function body.
+var FailureNoIfInPrecondition = Failure{
 	ID: "no_if_in_precondition",
 	Text: `package somepkg
 
@@ -20,5 +22,4 @@ func SomeFunc(x int, y int) (result string, err error) {
 	return
 }
 `,
-	Error:"expected an 'if' statement after the comment \"Pre-condition\" in function SomeFunc on line 14"}
-
+	Error: "expected an 'if' statement after the comment \"Pre-condition\" in function SomeFunc on line 14"}

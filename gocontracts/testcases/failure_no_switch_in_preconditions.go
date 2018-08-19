@@ -1,6 +1,8 @@
 package testcases
 
-var FailureNoSwitchInPrecondition= Failure{
+// FailureNoSwitchInPrecondition tests that we correctly detect when comment implying pre-conditions is not followed by
+// a switch statement in the function body.
+var FailureNoSwitchInPrecondition = Failure{
 	ID: "no_switch_in_preconditions",
 	Text: `package somepkg
 
@@ -20,4 +22,4 @@ func SomeFunc(x int, y int) (result string, err error) {
 	return
 }
 `,
-	Error:"expected a 'switch' statement after the comment \"Pre-conditions\" in function SomeFunc on line 14"}
+	Error: "expected a 'switch' statement after the comment \"Pre-conditions\" in function SomeFunc on line 14"}
