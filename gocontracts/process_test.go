@@ -7,7 +7,10 @@ import (
 	"reflect"
 	"testing"
 
+	"fmt"
 	"github.com/Parquery/gocontracts/gocontracts/testcases"
+	"math/rand"
+	"path/filepath"
 )
 
 var cases = []testcases.Case{
@@ -56,6 +59,24 @@ func meld(expected string, got string) (err error) {
 	return
 }
 
+// lastCommonChar searches for the last character of the common prefix in the 'expected' and the 'got'.
+// If they don't have a common prefix, found is false.
+func lastCommon(expected string, got string) (i int, found bool) {
+	found = false
+
+	i = 0
+	for i < len(expected) && i < len(got) {
+		if expected[i] == got[i] {
+			found = true
+			i++
+		} else {
+			break
+		}
+	}
+
+	return
+}
+
 func TestProcess(t *testing.T) {
 	for _, cs := range cases {
 		updated, err := Process(cs.Text)
@@ -64,23 +85,16 @@ func TestProcess(t *testing.T) {
 		}
 
 		if cs.Expected != updated {
-			lastCommon := "N/A"
-			lastCommonI := -1
-			i := 0
-			for i < len(cs.Expected) && i < len(updated) {
-				if cs.Expected[i] == updated[i] {
-					lastCommonI = i
-					lastCommon = string(cs.Expected[i])
-					i++
-				} else {
-					break
-				}
+			i, found := lastCommon(cs.Expected, updated)
 
+			lastChar := "N/A"
+			if found {
+				lastChar = string(cs.Expected[i])
 			}
-			meld(cs.Expected, updated)
+
 			t.Fatalf("Failed at case %s: "+
 				"expected (len: %d):\n%s, got (len: %d):\n%s\nLast common character at %d: %s",
-				cs.ID, len(cs.Expected), cs.Expected, len(updated), updated, lastCommonI, lastCommon)
+				cs.ID, len(cs.Expected), cs.Expected, len(updated), updated, i, lastChar)
 		}
 	}
 }
@@ -144,5 +158,110 @@ func TestNotCondStr(t *testing.T) {
 		if got != tc.expected {
 			t.Fatalf("Expected notCondStr %#v from condStr %#v, got: %#v", tc.expected, tc.condStr, got)
 		}
+	}
+}
+
+func TestProcessInPlace(t *testing.T) {
+	tmp, err := ioutil.TempFile("", "gocontracts-process_test-")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer func() {
+		err = os.Remove(tmp.Name())
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+	}()
+
+	// Pick an arbitrary test case
+	cs := testcases.DoubleNegation
+
+	pth := tmp.Name()
+	err = ioutil.WriteFile(pth, []byte(cs.Text), 0600)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	err = ProcessInPlace(pth)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	var data []byte
+	data, err = ioutil.ReadFile(pth)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	updated := string(data)
+	if updated != cs.Expected {
+		i, found := lastCommon(cs.Expected, updated)
+
+		lastChar := "N/A"
+		if found {
+			lastChar = string(cs.Expected[i])
+		}
+
+		t.Fatalf("Failed to process in-place the case %s: "+
+			"expected (len: %d):\n%s, updated (len: %d):\n%s\nLast common character at %d: %s",
+			cs.ID, len(cs.Expected), cs.Expected, len(updated), updated, i, lastChar)
+	}
+}
+
+func TestProcessInPlace_Failure(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "process_test-")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	defer func() {
+		err = os.RemoveAll(tmpdir)
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+	}()
+
+	// Pick an arbitrary failure case
+	failure := testcases.FailureUnmatchedFunctionInPostcondition
+
+	pth := filepath.Join(tmpdir, "some_file.go")
+	err = ioutil.WriteFile(pth, []byte(failure.Text), 0600)
+
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	err = ProcessInPlace(pth)
+	if err == nil {
+		t.Fatalf("Expected an error when processing the failure case %s in-place, but got nil", failure.ID)
+	}
+
+	if err == nil {
+		t.Fatalf("Expected an error when processing the failure case %s in-place, but got nil", failure.ID)
+	}
+
+	if failure.Error != err.Error() {
+		t.Fatalf("Expected a failure error %#v in the failure case %s, "+
+			"but got %#v", failure.Error, failure.ID, err.Error())
+	}
+}
+
+func TestProcessFile_NonExisting(t *testing.T) {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+	randomData := make([]byte, 10)
+	for i := range randomData {
+		randomData[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+
+	randomStr := string(randomData)
+
+	_, err := ProcessFile(fmt.Sprintf("/some/nonexisting/path-%s", randomStr))
+	if err == nil {
+		t.Fatal("Expected an error when processing a non-existing file, but got none")
+	}
+
+	expected := "failed to read: open /some/nonexisting/path-XVlBzgbaiC: no such file or directory"
+	if expected != err.Error() {
+		t.Fatalf("Expected an error %#v, but got %#v", expected, err.Error())
 	}
 }
