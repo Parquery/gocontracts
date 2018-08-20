@@ -3,11 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"strings"
-
 	"github.com/Parquery/gocontracts/gocontracts"
+	"os"
 )
 
 func usage() {
@@ -30,34 +27,20 @@ func run() (retcode int) {
 
 	pth := flag.Arg(0)
 
-	data, err := ioutil.ReadFile(pth)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to read: %s\n", err)
-		return 1
-	}
-
-	text := string(data)
-
-	updated, err := gocontracts.Process(text)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to process %s: %s\n", pth, err)
-		return 1
-	}
-
 	if *inPlace {
-		var fi os.FileInfo
-		fi, err = os.Stat(pth)
+		err := gocontracts.ProcessInPlace(pth)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to stat %s: %s\n", pth, err)
+			fmt.Fprintf(os.Stderr, err.Error())
+			return 1
+		}
+	} else {
+		updated, err := gocontracts.ProcessFile(pth)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, err.Error())
 			return 1
 		}
 
-		ioutil.WriteFile(pth, []byte(updated), fi.Mode())
-	} else {
 		fmt.Fprint(os.Stdout, updated)
-		if !strings.HasSuffix(updated, "\n") {
-			fmt.Fprint(os.Stdout, "\n")
-		}
 	}
 
 	return 0
