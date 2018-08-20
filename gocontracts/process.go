@@ -6,6 +6,9 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -516,6 +519,71 @@ func Process(text string) (updated string, err error) {
 	}
 
 	updated = update(text, updates, fset)
+
+	return
+}
+
+// ProcessFile loads the Go file and processes it.
+func ProcessFile(pth string) (updated string, err error) {
+	data, err := ioutil.ReadFile(pth)
+	if err != nil {
+		err = fmt.Errorf("failed to read: %s", err)
+		return
+	}
+
+	text := string(data)
+
+	updated, err = Process(text)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+// ProcessInPlace loads the Go file in memory, proesses it and writes atomically back to the file.
+func ProcessInPlace(pth string) (err error) {
+	var updated string
+	updated, err = ProcessFile(pth)
+	if err != nil {
+		return
+	}
+
+	var tmp *os.File
+	tmp, err = ioutil.TempFile("", "gocontracts-"+filepath.Base(pth))
+	if err != nil {
+		return
+	}
+	defer func() {
+		_, err = os.Stat(tmp.Name())
+		switch {
+		case err == nil:
+			err = os.Remove(tmp.Name())
+			if err != nil {
+				err = fmt.Errorf("failed to remove %s: %s", tmp.Name(), err.Error())
+				return
+			}
+		case os.IsNotExist(err):
+			// Pass
+			err = nil
+
+		default:
+			err = fmt.Errorf("failed to stat %s: %s", tmp.Name(), err.Error())
+			return
+		}
+	}()
+
+	err = ioutil.WriteFile(tmp.Name(), []byte(updated), 0600)
+	if err != nil {
+		err = fmt.Errorf("failed to write to %s: %s", tmp.Name(), err.Error())
+		return
+	}
+
+	err = os.Rename(tmp.Name(), pth)
+	if err != nil {
+		err = fmt.Errorf("failed to move %s to %s: %s", tmp.Name(), pth, err.Error())
+		return
+	}
 
 	return
 }
