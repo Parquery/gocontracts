@@ -7,6 +7,8 @@ import (
 	"os"
 )
 
+var inPlace = flag.Bool("w", false, "write result to (source) file instead of stdout")
+
 func usage() {
 	fmt.Fprintf(os.Stderr, "usage: gocontracts [flags] [path]\n")
 	flag.PrintDefaults()
@@ -14,8 +16,6 @@ func usage() {
 
 func main() {
 	os.Exit(func() (retcode int) {
-		inPlace := flag.Bool("w", false, "write result to (source) file instead of stdout")
-
 		flag.Parse()
 
 		if flag.NArg() != 1 {
