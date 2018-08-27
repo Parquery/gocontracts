@@ -13,6 +13,12 @@ before_install:
     # Merge all subpackage code coverage reports into a single report
     - go get -u github.com/modocache/gover
 
+    # Install golint to lint the code
+    - go get -u golang.org/x/lint/golint
+
+    # Install errcheck to check that all errors have been handled
+    - go get -u github.com/kisielk/errcheck
+
     # Install cyclomatic dependency analysis tool
     - go get -u github.com/fzipp/gocyclo
 
@@ -24,24 +30,8 @@ before_script:
     - echo $TRAVIS_BUILD_NUMBER
     - echo $TRAVIS_REPO_SLUG
 
-    # Test if code was formatted with 'go fmt'
-    - if [ -n "$(gofmt -s -l `find . -iname '*.go' | grep -v 'vendor'`)" ]; then echo "Code was not formatted with gofmt -s."; false; fi
-
-    # Perform static code analysys
-    - go tool vet -unsafeptr=false `go list ./... | grep -v vendor | sed -e "s,^,$GOPATH/src/,;s,.*:,,"`
-
-    # Forbid the cyclomatic complexity of 15 or more
-    - gocyclo -over 15 `find . -iname '*.go' | grep -v 'vendor' | grep -v '_test.go'`
-
 script:
-    # go list supply import paths for all sub directories.
-    # Exclude vendor directory.
-    # Execute go test on every local subpackage and generate coverage report for each.
-    # Test packages in parallel (xargs -P).
-    - go list ./... | grep -v vendor | xargs -n1 -I {} -P 4 go test -v -covermode=count -coverprofile=../../../{}/profile.coverprofile {}
-
-    # Compile binary
-    - go build ./...
+    - ./precommit.py
 
 after_success:
     # Merge all coverage reports located in subdirectories and put them under: gover.coverprofile
