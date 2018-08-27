@@ -45,15 +45,29 @@ func meld(expected string, got string) (err error) {
 	defer func() {
 		err = os.Remove(tmp1.Name())
 	}()
-	tmp1.WriteString(expected)
-	tmp1.Close()
+	_, err = tmp1.WriteString(expected)
+	if err != nil {
+		return
+	}
+
+	err = tmp1.Close()
+	if err != nil {
+		return
+	}
 
 	tmp2, _ := ioutil.TempFile("", "got")
 	defer func() {
 		err = os.Remove(tmp2.Name())
 	}()
-	tmp2.WriteString(got)
-	tmp2.Close()
+	_, err = tmp2.WriteString(got)
+	if err != nil {
+		return
+	}
+
+	err = tmp2.Close()
+	if err != nil {
+		return
+	}
 
 	err = exec.Command("meld", tmp1.Name(), tmp2.Name()).Run()
 	return
