@@ -26,7 +26,9 @@ var cases = []testcases.Case{
 	testcases.DoubleNegations,
 	testcases.NoConditions,
 	testcases.NoFunction,
-	testcases.TypeDeclaration}
+	testcases.TypeDeclaration,
+	testcases.ConditionsRemovedEmptyFunction,
+	testcases.ConditionsRemoved}
 
 var failures = []testcases.Failure{
 	testcases.FailureStatementInBetween,
@@ -168,9 +170,10 @@ func TestNotCondStr(t *testing.T) {
 		{condStr: "", expected: ""}}
 
 	for _, tc := range testCases {
-		got := notCondStr(tc.condStr)
+		c := condition{condStr: tc.condStr}
+		got := c.NotCondStr()
 		if got != tc.expected {
-			t.Fatalf("Expected notCondStr %#v from condStr %#v, got: %#v", tc.expected, tc.condStr, got)
+			t.Fatalf("Expected NotCondStr %#v from condStr %#v, got: %#v", tc.expected, tc.condStr, got)
 		}
 	}
 }
