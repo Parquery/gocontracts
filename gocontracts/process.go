@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"text/template"
 )
 
 var requiresRe = regexp.MustCompile(`^\s*([a-zA-Z_][a-zA-Z_0-9]*)\s+requires\s*:\s*$`)
@@ -243,6 +244,29 @@ func parseConditions(
 	return
 }
 
+func findNextNodePos(bodyCmtMap ast.CommentMap, body *ast.BlockStmt, conditionsEnd token.Pos) (nextNodePos token.Pos) {
+	nextNodePos = token.NoPos
+
+	for _, stmt := range body.List {
+		if stmt.Pos() > conditionsEnd {
+			nextNodePos = stmt.Pos()
+			break
+		}
+	}
+
+	// See if there is a comment before the conditions and the first next statement
+	for _, cmtGrp := range bodyCmtMap.Comments() {
+		if cmtGrp.Pos() > conditionsEnd &&
+			(nextNodePos == token.NoPos || cmtGrp.Pos() < nextNodePos) {
+
+			nextNodePos = cmtGrp.Pos()
+			break
+		}
+	}
+
+	return
+}
+
 // findBlocks searches for the start and end of the pre-condition and post-condition block, respectively.
 func findBlocks(
 	fset *token.FileSet, fn *ast.FuncDecl, cmtMap ast.CommentMap) (p condPositions, err error) {
@@ -274,24 +298,7 @@ func findBlocks(
 	}
 
 	// Find the next node in statements
-	p.nextNodePos = token.NoPos
-
-	for _, stmt := range fn.Body.List {
-		if stmt.Pos() > conditionsEnd {
-			p.nextNodePos = stmt.Pos()
-			break
-		}
-	}
-
-	// See if there is a comment before the conditions and the first next statement
-	for _, cmtGrp := range bodyCmtMap.Comments() {
-		if cmtGrp.Pos() > conditionsEnd &&
-			(p.nextNodePos == token.NoPos || cmtGrp.Pos() < p.nextNodePos) {
-
-			p.nextNodePos = cmtGrp.Pos()
-			break
-		}
-	}
+	p.nextNodePos = findNextNodePos(bodyCmtMap, fn.Body, conditionsEnd)
 
 	return
 }
@@ -304,12 +311,12 @@ type funcUpdate struct {
 	positions condPositions
 }
 
-func violationMsg(cond condition) string {
+func (c condition) ViolationMsg() string {
 	msg := "Violated: "
-	if len(cond.label) > 0 {
-		msg += cond.label + ": "
+	if len(c.label) > 0 {
+		msg += c.label + ": "
 	}
-	msg += cond.condStr
+	msg += c.condStr
 
 	return strconv.Quote(msg)
 }
@@ -317,155 +324,176 @@ func violationMsg(cond condition) string {
 var notExprWithParensRe = regexp.MustCompile(`^!\s*\((.+)\)$`)
 var exprWithParensRe = regexp.MustCompile(`^\(\s*(.+)\s*\)$`)
 
-func notCondStr(condStr string) string {
-	if condStr == "" {
+func (c condition) NotCondStr() string {
+	if c.condStr == "" {
 		return ""
 	}
 
-	mtch := notExprWithParensRe.FindStringSubmatch(condStr)
+	mtch := notExprWithParensRe.FindStringSubmatch(c.condStr)
 	if len(mtch) > 0 {
 		return strings.Trim(mtch[1], " \t")
 	}
 
-	if condStr[0] == '!' {
-		return strings.Trim(condStr[1:], " \t")
+	if c.condStr[0] == '!' {
+		return strings.Trim(c.condStr[1:], " \t")
 	}
 
-	if exprWithParensRe.MatchString(condStr) {
-		return fmt.Sprintf("!%s", strings.Trim(condStr, " \t"))
+	if exprWithParensRe.MatchString(c.condStr) {
+		return fmt.Sprintf("!%s", strings.Trim(c.condStr, " \t"))
 	}
-	return fmt.Sprintf("!(%s)", strings.Trim(condStr, " \t"))
+	return fmt.Sprintf("!(%s)", strings.Trim(c.condStr, " \t"))
 }
+
+var tplPre = template.Must(template.New("preconditions").Parse(
+	`{{$l := len .Pres }}{{ if eq $l 1 }}{{ $c := index .Pres 0 }}	// Pre-condition
+	if {{ $c.NotCondStr }} {
+		panic({{ $c.ViolationMsg }})
+	}
+{{- else }}	// Pre-conditions
+	switch { {{- range .Pres }}
+	case {{ .NotCondStr }}:
+		panic({{ .ViolationMsg }})
+{{- end }}
+	default:
+		// Pass
+	}
+{{- end }}`))
+
+var tplPost = template.Must(template.New("postconditions").Parse(
+	`{{$l := len .Posts }}{{ if eq $l 1 }}{{ $c := index .Posts 0 }}	// Post-condition
+	defer func() {
+		if {{ $c.NotCondStr }} {
+			panic({{ $c.ViolationMsg }})
+		}
+	}()
+{{- else }}	// Post-conditions
+	defer func() {
+		switch { {{- range .Posts }}
+		case {{ .NotCondStr }}:
+			panic({{ .ViolationMsg }})
+		{{- end }}
+		default:
+			// Pass
+		}
+	}()
+{{- end }}`))
 
 // generateCode generates the code of the two blocks.
 //
 // The first line of generated code is indented.
 // The generated code does not end with a new-line character.
-func generateCode(pres []condition, posts []condition) (code string) {
+func generateCode(pres []condition, posts []condition) (code string, err error) {
 	blocks := []string{}
 
 	if len(pres) > 0 {
+		data := struct{ Pres []condition }{Pres: pres}
+
 		var buf bytes.Buffer
-
-		if len(pres) == 1 {
-			buf.WriteString(fmt.Sprintf(
-				"\t// Pre-condition\n"+
-					"\tif %s {\n"+
-					"\t\tpanic(%s)\n"+
-					"\t}", notCondStr(pres[0].condStr), violationMsg(pres[0])))
-		} else {
-			buf.WriteString("\t// Pre-conditions\n" +
-				"\tswitch {\n")
-
-			for _, pre := range pres {
-				buf.WriteString(fmt.Sprintf(
-					"\tcase %s:\n"+
-						"\t\tpanic(%s)\n", notCondStr(pre.condStr), violationMsg(pre)))
-			}
-			buf.WriteString("\tdefault:\n" +
-				"\t\t// Pass\n" +
-				"\t}")
+		err = tplPre.Execute(&buf, data)
+		if err != nil {
+			return
 		}
 
 		blocks = append(blocks, buf.String())
 	}
 
 	if len(posts) > 0 {
+		data := struct{ Posts []condition }{Posts: posts}
+
 		var buf bytes.Buffer
-
-		if len(posts) == 1 {
-			buf.WriteString(fmt.Sprintf(
-				"\t// Post-condition\n"+
-					"\tdefer func() {\n"+
-					"\t\tif %s {\n"+
-					"\t\t\tpanic(%s)\n"+
-					"\t\t}\n"+
-					"\t}()", notCondStr(posts[0].condStr), violationMsg(posts[0])))
-		} else {
-			buf.WriteString(
-				"\t// Post-conditions\n" +
-					"\tdefer func() {\n" +
-					"\t\tswitch {\n")
-
-			for _, post := range posts {
-				buf.WriteString(fmt.Sprintf(
-					"\t\tcase %s:\n"+
-						"\t\t\tpanic(%s)\n", notCondStr(post.condStr), violationMsg(post)))
-			}
-			buf.WriteString("\t\tdefault:\n" +
-				"\t\t\t// Pass\n" +
-				"\t\t}\n" +
-				"\t}()")
+		err = tplPost.Execute(&buf, data)
+		if err != nil {
+			return
 		}
 
 		blocks = append(blocks, buf.String())
 	}
 
-	return strings.Join(blocks, "\n\n")
+	code = strings.Join(blocks, "\n\n")
+	return
 }
 
-func update(text string, updates []funcUpdate, fset *token.FileSet) (updated string) {
-	if len(updates) == 0 {
-		updated = text
-		return
+// updateEmptyFunc updates the function which contains no body.
+// cursor points to the end of the function.
+func updateEmptyFunc(fset *token.FileSet, up funcUpdate, code string, writer *bytes.Buffer) (cursor int) {
+	// The function contains no statements except the conditions so we can simply fill it out.
+	cursor = fset.Position(up.fn.Body.Rbrace).Offset // Move cursor to the end of the function
+
+	if len(code) > 0 {
+		writer.WriteRune('\n')
+		writer.WriteString(code)
+		writer.WriteRune('\n')
 	}
 
+	return
+}
+
+// updateNonemptyFunc updates the function whose body after the conditions is not empty.
+// cursor points to the next statement after the conditions.
+func updateNonemptyFunc(
+	fset *token.FileSet, up funcUpdate, code string, text string, writer *bytes.Buffer) (cursor int) {
+
+	lbraceOffset := fset.Position(up.fn.Body.Lbrace).Offset
+
+	// Go back in order to include a farthest possible end of the post-condition
+	conditionsEnd := fset.Position(up.positions.nextNodePos).Offset
+
+	for text[conditionsEnd] != '\n' && text[conditionsEnd] != ';' {
+		conditionsEnd--
+
+		if conditionsEnd == lbraceOffset {
+			panic(fmt.Sprintf(
+				"conditionsEnd reached the left brace of the function at offset: %d", lbraceOffset))
+		}
+	}
+
+	cursor = conditionsEnd
+
+	if len(code) > 0 {
+		writer.WriteRune('\n')
+		writer.WriteString(code)
+
+		switch text[conditionsEnd] {
+		case ';':
+			// Pass, keep the semi-colon at the same last line of the post-condition if it was already there in the
+			// previous code
+		case '\n':
+			// Add an additional new line to nicely separate the contract conditions from the rest of the code
+			writer.WriteRune('\n')
+		default:
+			panic(fmt.Sprintf("Unexpected rune at the end of the contract condition(s) at offset %d: %c",
+				conditionsEnd, text[conditionsEnd]))
+		}
+	}
+
+	return
+}
+
+func update(text string, updates []funcUpdate, fset *token.FileSet) (updated string, err error) {
 	writer := bytes.NewBufferString("")
 
 	cursor := 0
 
 	for _, up := range updates {
-		if len(up.pres) == 0 && len(up.posts) == 0 {
-			continue
+		lbraceOffset := fset.Position(up.fn.Body.Lbrace).Offset
+
+		// Write the prefix
+		writer.WriteString(text[cursor : lbraceOffset+1])
+
+		var code string
+		code, err = generateCode(up.pres, up.posts)
+		if err != nil {
+			return
 		}
 
 		if up.positions.nextNodePos == token.NoPos {
 			// The function contains no statements except the conditions so we can simply fill it out.
 
-			lbraceOffset := fset.Position(up.fn.Body.Lbrace).Offset
-			rbraceOffset := fset.Position(up.fn.Body.Rbrace).Offset
-
-			// Write the prefix
-			writer.WriteString(text[cursor : lbraceOffset+1])
-			cursor = rbraceOffset // Move cursor to the end of the function
-
-			writer.WriteRune('\n')
-			writer.WriteString(generateCode(up.pres, up.posts))
-			writer.WriteRune('\n')
+			cursor = updateEmptyFunc(fset, up, code, writer)
 		} else {
 			// The function contains one or more statements after the contract conditions.
 
-			lbraceOffset := fset.Position(up.fn.Body.Lbrace).Offset
-			nodeOffset := fset.Position(up.positions.nextNodePos).Offset
-
-			// Go back in order to include a farthest possible end of the post-condition
-			conditionsEnd := nodeOffset
-			for text[conditionsEnd] != '\n' && text[conditionsEnd] != ';' {
-				conditionsEnd--
-
-				if conditionsEnd == lbraceOffset {
-					panic(fmt.Sprintf(
-						"conditionsEnd reached the left brace of the function at offset: %d", lbraceOffset))
-				}
-			}
-
-			writer.WriteString(text[cursor : lbraceOffset+1])
-			cursor = conditionsEnd
-
-			writer.WriteRune('\n')
-			writer.WriteString(generateCode(up.pres, up.posts))
-
-			switch text[conditionsEnd] {
-			case ';':
-				// Pass, keep the semi-colon at the same last line of the post-condition if it was already there in the
-				// previous code
-			case '\n':
-				// Add an additional new line to nicely separate the contract conditions from the rest of the code
-				writer.WriteString("\n")
-			default:
-				panic(fmt.Sprintf("Unexpected rune at the end of the contract condition(s) at offset %d: %c",
-					conditionsEnd, text[conditionsEnd]))
-			}
+			cursor = updateNonemptyFunc(fset, up, code, text, writer)
 		}
 	}
 
@@ -518,7 +546,15 @@ func Process(text string) (updated string, err error) {
 			funcUpdate{pres: pres, posts: posts, fn: fn, positions: positions})
 	}
 
-	updated = update(text, updates, fset)
+	if len(updates) == 0 {
+		updated = text
+		return
+	}
+
+	updated, err = update(text, updates, fset)
+	if err != nil {
+		return
+	}
 
 	return
 }
