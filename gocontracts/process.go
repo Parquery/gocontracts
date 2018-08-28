@@ -505,7 +505,9 @@ func update(text string, updates []funcUpdate, fset *token.FileSet) (updated str
 }
 
 // Process automatically adds (or updates) the blocks for checking the pre- and post-conditions.
-func Process(text string) (updated string, err error) {
+// If remove is set, the code to check the conditions is removed, but the conditions are left untouched
+// in the comment.
+func Process(text string, remove bool) (updated string, err error) {
 	fset := token.NewFileSet()
 
 	var node *ast.File
@@ -529,11 +531,16 @@ func Process(text string) (updated string, err error) {
 
 		var pres []condition
 		var posts []condition
-		pres, posts, err = parseContracts(name, commentLines)
-		if err != nil {
-			err = fmt.Errorf("failed to parse comments of the function %s on line %d: %s",
-				name, fset.Position(fn.Doc.Pos()).Line, err)
-			return
+
+		if !remove {
+			pres, posts, err = parseContracts(name, commentLines)
+			if err != nil {
+				err = fmt.Errorf("failed to parse comments of the function %s on line %d: %s",
+					name, fset.Position(fn.Doc.Pos()).Line, err)
+				return
+			}
+		} else {
+			// Remove is true, hence leave the pre and postconditions empty.
 		}
 
 		var positions condPositions
@@ -560,7 +567,9 @@ func Process(text string) (updated string, err error) {
 }
 
 // ProcessFile loads the Go file and processes it.
-func ProcessFile(pth string) (updated string, err error) {
+// If remove is set, the code to check the conditions is removed, but the conditions are left untouched
+// in the comment.
+func ProcessFile(pth string, remove bool) (updated string, err error) {
 	data, err := ioutil.ReadFile(pth)
 	if err != nil {
 		err = fmt.Errorf("failed to read: %s", err)
@@ -569,7 +578,7 @@ func ProcessFile(pth string) (updated string, err error) {
 
 	text := string(data)
 
-	updated, err = Process(text)
+	updated, err = Process(text, remove)
 	if err != nil {
 		return
 	}
@@ -578,9 +587,11 @@ func ProcessFile(pth string) (updated string, err error) {
 }
 
 // ProcessInPlace loads the Go file in memory, proesses it and writes atomically back to the file.
-func ProcessInPlace(pth string) (err error) {
+// If remove is set, the code to check the conditions is removed, but the conditions are left untouched
+// in the comment.
+func ProcessInPlace(pth string, remove bool) (err error) {
 	var updated string
-	updated, err = ProcessFile(pth)
+	updated, err = ProcessFile(pth, remove)
 	if err != nil {
 		return
 	}

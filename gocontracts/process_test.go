@@ -27,8 +27,11 @@ var cases = []testcases.Case{
 	testcases.NoConditions,
 	testcases.NoFunction,
 	testcases.TypeDeclaration,
-	testcases.ConditionsRemovedEmptyFunction,
-	testcases.ConditionsRemoved}
+	testcases.ConditionsRemovedInCommentOfEmptyFunction,
+	testcases.ConditionsRemovedInComment,
+	testcases.RemoveInCode,
+	testcases.RemoveInCodeOfEmptyFunction,
+	testcases.RemoveInCodeWithSemicolon}
 
 var failures = []testcases.Failure{
 	testcases.FailureStatementInBetween,
@@ -95,7 +98,7 @@ func lastCommon(expected string, got string) (i int, found bool) {
 
 func TestProcess(t *testing.T) {
 	for _, cs := range cases {
-		updated, err := Process(cs.Text)
+		updated, err := Process(cs.Text, cs.Remove)
 		if err != nil {
 			t.Fatalf("Failed at case %s: %s", cs.ID, err.Error())
 		}
@@ -117,7 +120,7 @@ func TestProcess(t *testing.T) {
 
 func TestProcessFailures(t *testing.T) {
 	for _, failure := range failures {
-		_, err := Process(failure.Text)
+		_, err := Process(failure.Text, false)
 
 		if err == nil {
 			t.Fatalf("Expected an error in the failure case %s, but got nil", failure.ID)
@@ -199,7 +202,7 @@ func TestProcessInPlace(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	err = ProcessInPlace(pth)
+	err = ProcessInPlace(pth, false)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -247,7 +250,7 @@ func TestProcessInPlace_Failure(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	err = ProcessInPlace(pth)
+	err = ProcessInPlace(pth, false)
 	if err == nil {
 		t.Fatalf("Expected an error when processing the failure case %s in-place, but got nil", failure.ID)
 	}
@@ -272,12 +275,13 @@ func TestProcessFile_NonExisting(t *testing.T) {
 
 	randomStr := string(randomData)
 
-	_, err := ProcessFile(fmt.Sprintf("/some/nonexisting/path-%s", randomStr))
+	pth := fmt.Sprintf("/some/nonexisting/path-%s", randomStr)
+	_, err := ProcessFile(pth, false)
 	if err == nil {
 		t.Fatal("Expected an error when processing a non-existing file, but got none")
 	}
 
-	expected := "failed to read: open /some/nonexisting/path-XVlBzgbaiC: no such file or directory"
+	expected := fmt.Sprintf("failed to read: open %s: no such file or directory", pth)
 	if expected != err.Error() {
 		t.Fatalf("Expected an error %#v, but got %#v", expected, err.Error())
 	}

@@ -1,9 +1,9 @@
 package testcases
 
-// ConditionsRemovedEmptyFunction tests that empty functions without conditions in the documentation are stripped of
-// the condition checking code.
-var ConditionsRemovedEmptyFunction = Case{
-	ID: "conditions_removed_empty_function",
+// ConditionsRemovedInCommentOfEmptyFunction tests that empty functions without conditions in the documentation are
+// stripped of the condition checking code.
+var ConditionsRemovedInCommentOfEmptyFunction = Case{
+	ID: "conditions_removed_in_comment_of_empty_function",
 	Text: `package somepkg
 
 // SomeFunc does something.
