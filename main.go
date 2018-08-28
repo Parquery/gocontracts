@@ -8,6 +8,9 @@ import (
 )
 
 var inPlace = flag.Bool("w", false, "write result to (source) file instead of stdout")
+var remove = flag.Bool("r", false,
+	"remove the condition checks from the code (but leave them in the comments). "+
+		"This is useful when you want to build a production binary without the checks.")
 
 func usage() {
 	_, err := fmt.Fprintf(os.Stderr, "usage: gocontracts [flags] [path]\n")
@@ -38,7 +41,7 @@ func main() {
 		pth := flag.Arg(0)
 
 		if *inPlace {
-			err := gocontracts.ProcessInPlace(pth)
+			err := gocontracts.ProcessInPlace(pth, *remove)
 			if err != nil {
 				_, err = fmt.Fprintf(os.Stderr, err.Error())
 				if err != nil {
@@ -47,7 +50,7 @@ func main() {
 				return 1
 			}
 		} else {
-			updated, err := gocontracts.ProcessFile(pth)
+			updated, err := gocontracts.ProcessFile(pth, *remove)
 			if err != nil {
 				_, err = fmt.Fprintf(os.Stderr, err.Error())
 				if err != nil {
