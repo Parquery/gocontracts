@@ -1,9 +1,9 @@
 package testcases
 
-// ConditionsRemoved tests that non-empty functions without conditions in the documentation are stripped of the
-// condition checking code.
-var ConditionsRemoved = Case{
-	ID: "conditions_removed",
+// ConditionsRemovedInComment tests that non-empty functions without conditions in the documentation are stripped of
+// the condition checking code.
+var ConditionsRemovedInComment = Case{
+	ID: "conditions_removed_in_comment",
 	Text: `package somepkg
 
 // SomeFunc does something.
