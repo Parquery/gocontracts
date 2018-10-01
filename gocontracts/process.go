@@ -597,25 +597,24 @@ func ProcessInPlace(pth string, remove bool) (err error) {
 	}
 
 	var tmp *os.File
-	tmp, err = ioutil.TempFile("", "gocontracts-"+filepath.Base(pth))
+	tmp, err = ioutil.TempFile(filepath.Dir(pth), "temporary-gocontracts-"+filepath.Base(pth))
 	if err != nil {
 		return
 	}
 	defer func() {
-		_, err = os.Stat(tmp.Name())
+		_, statErr := os.Stat(tmp.Name())
 		switch {
-		case err == nil:
-			err = os.Remove(tmp.Name())
-			if err != nil {
+		case statErr == nil:
+			removeErr := os.Remove(tmp.Name())
+			if removeErr != nil {
 				err = fmt.Errorf("failed to remove %s: %s", tmp.Name(), err.Error())
 				return
 			}
-		case os.IsNotExist(err):
+		case os.IsNotExist(statErr):
 			// Pass
-			err = nil
 
 		default:
-			err = fmt.Errorf("failed to stat %s: %s", tmp.Name(), err.Error())
+			err = fmt.Errorf("failed to stat %s: %s", tmp.Name(), statErr.Error())
 			return
 		}
 	}()
