@@ -18,6 +18,7 @@ var cases = []testcases.Case{
 	testcases.HasPrecondition,
 	testcases.HasPostcondition,
 	testcases.CurlyBracketsOnSameLine,
+	testcases.OneLineFunction,
 	testcases.HasOnlyComment,
 	testcases.SemicolonAfterPostcondition,
 	testcases.CommentAfterPostcondition,
@@ -98,7 +99,7 @@ func lastCommon(expected string, got string) (i int, found bool) {
 
 func TestProcess(t *testing.T) {
 	for _, cs := range cases {
-		updated, err := Process(cs.Text, cs.Remove)
+		updated, err := Process(cs.Text, cs.ID, cs.Remove)
 		if err != nil {
 			t.Fatalf("Failed at case %s: %s", cs.ID, err.Error())
 		}
@@ -120,7 +121,7 @@ func TestProcess(t *testing.T) {
 
 func TestProcessFailures(t *testing.T) {
 	for _, failure := range failures {
-		_, err := Process(failure.Text, false)
+		_, err := Process(failure.Text, failure.ID, false)
 
 		if err == nil {
 			t.Fatalf("Expected an error in the failure case %s, but got nil", failure.ID)

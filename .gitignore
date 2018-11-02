@@ -1,2 +1,4 @@
 .idea
 gocontracts/*.coverprofile
+*.coverprofile
+gocontracts/testcases/*.coverprofile
