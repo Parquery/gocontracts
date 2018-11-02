@@ -177,7 +177,7 @@ We provide x86 Linux binaries in the "Releases" section.
 To compile from code, run:
 
 ```bash
-go get -U github.com/Parquery/gocontracts
+go get -u github.com/Parquery/gocontracts
 ```
 
 Development
