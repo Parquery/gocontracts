@@ -141,6 +141,91 @@ Note that conditioning can be seen as logical implication
 multiple implications as 
 `err == nil ⇒ (¬ empty ⇒ first ≤ last)`.
 
+Toggling Contracts
+------------------
+When developing a library, it is important to give your users a possibility to toggle families of contracts so that they can adapt _your_ contracts to _their_ use case. For example, some contracts of your library should be verified in testing and in production, some should be verified only in testing of _their_ modules and others should be verified only in _your_ unit tests, but not in _theirs_.
+
+To that end, you can use build tags to allow toggling of contracts at compile time (https://golang.org/pkg/go/build/#hdr-Build_Constraints). Define for each of the contract family a separate file which is built dependening on the build tag. In each of these files, define constant booleans (_e.g._, `InTest`, `InUTest`). Depending on the scenario, set these variables appropriately: in production scenario, `InTest = false` and `InUTest = false`, in the test scenario for others `InTest = true` and  `InUTest = false`, while in the scenario of _your_ unit tests `InTest = true` and `InUTest = true`.
+
+The examples of the three files follow.
+
+`contracts_prod.go`:
+```go
+// +build prod,!test,!utest
+package somepackage
+
+const InTest = false
+const InUTest = false
+```
+
+`contracts_test.go`:
+```go
+// +build !prod,test,!utest
+package somepackage
+
+const InTest = true
+const InUTest = false
+```
+
+`contracts_utest.go`:
+```go
+// +build !prod,!test,utest
+package somepackage
+
+const InTest = true
+const InUTest = true
+```
+
+Include each of these boolean constants in your contract conditions and `&&` 
+with the condition. 
+For example, this is how you extend the postcondition of the function `Range` 
+written in the previous section to be verified only in _yours_ and _theirs_ 
+tests, but not in production:
+
+```go
+// Range returns a range of the timestamps available in the database.
+//
+// Range ensures:
+// * InTest && (err != nil || (empty || first <= last))
+func (t *Txn) Range() (first int64, last int64, empty bool, err error) {
+	...
+}
+```
+
+Since constant booleans are placed first in the conjunction, 
+the rest of the condition will not be evaluated incurring thus no 
+computational overhead in the production at runtime. 
+
+Usage
+=====
+Gocontracts reads the Go file and outputs the modified source code to standard
+output:
+
+```bash
+gocontracts /path/to/some/file.go
+```
+
+You can modify the file in-place by supplying the `-w` argument:
+
+```bash
+gocontracts -w /path/to/some/file.go
+```
+
+If you want to remove the contract checks from the code, supply the 
+`-r` argument:
+
+```bash
+gocontracts -w -r /path/to/some/file.go
+```
+
+The remove argument is particularly useful when you have a build system
+in place and you want to distinguish between the debug code and the
+release (production) code.
+
+Before building the release code, run the gocontracts with `-r` to remove 
+the checks from the code.
+
+
 Usage
 =====
 Gocontracts reads the Go file and outputs the modified source code to standard
