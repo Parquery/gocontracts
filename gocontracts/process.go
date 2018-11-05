@@ -428,41 +428,73 @@ func updateEmptyFunc(fset *token.FileSet, up funcUpdate, code string, writer *by
 	return
 }
 
-// updateNonemptyFunc updates the function whose body after the conditions is not empty.
-// cursor points to the next statement after the conditions.
-func updateNonemptyFunc(
+// updateSingleLineFunc updates the function whose body is a single line of statements separated by ';'.
+// cursor points just after the right brace of the function definition.
+func updateSingleLineFunc(
 	fset *token.FileSet, up funcUpdate, code string, text string, writer *bytes.Buffer) (cursor int) {
 
 	lbraceOffset := fset.Position(up.fn.Body.Lbrace).Offset
-
-	// Go back in order to include a farthest possible end of the post-condition
-	conditionsEnd := fset.Position(up.positions.nextNodePos).Offset
-
-	for text[conditionsEnd] != '\n' && text[conditionsEnd] != ';' {
-		conditionsEnd--
-
-		if conditionsEnd == lbraceOffset {
-			panic(fmt.Sprintf(
-				"conditionsEnd reached the left brace of the function at offset: %d", lbraceOffset))
-		}
-	}
-
-	cursor = conditionsEnd
+	rbraceOffset := fset.Position(up.fn.Body.Rbrace).Offset
 
 	if len(code) > 0 {
 		writer.WriteRune('\n')
 		writer.WriteString(code)
 
-		switch text[conditionsEnd] {
-		case ';':
-			// Pass, keep the semi-colon at the same last line of the post-condition if it was already there in the
-			// previous code
-		case '\n':
+		// Add an additional new line to nicely separate the contract conditions from the rest of the code
+		writer.WriteString("\n\n")
+
+		// Add an indention so that the statements on the single line are indented properly after the contract
+		// conditions.
+		writer.WriteRune('\t')
+
+		// Write the function body
+
+		fstStmtOffset := fset.Position(up.positions.nextNodePos).Offset
+
+		writer.WriteString(strings.TrimRight(text[fstStmtOffset:rbraceOffset], "\t "))
+
+		// Write a new line so that the previous single-line function is nicely reformatted as a multi-line
+		// function.
+		writer.WriteString("\n}")
+	} else {
+		writer.WriteString(text[lbraceOffset+1 : rbraceOffset+1])
+	}
+
+	cursor = rbraceOffset + 1
+
+	return
+}
+
+// updateMultilineFunc updates the function whose body after the conditions is not empty.
+// cursor points to the next statement after the conditions.
+func updateMultilineFunc(
+	fset *token.FileSet, up funcUpdate, code string, text string, writer *bytes.Buffer) (cursor int) {
+
+	lbraceOffset := fset.Position(up.fn.Body.Lbrace).Offset
+
+	cursor = fset.Position(up.positions.nextNodePos).Offset
+
+	// Go back in order to include a farthest possible end of the last condition block
+	for text[cursor] != '\n' && text[cursor] != ';' {
+		cursor--
+
+		if cursor == lbraceOffset {
+			panic(fmt.Sprintf(
+				"cursor reached the left brace of the function %s at %s:%d",
+				up.fn.Name.Name, fset.File(up.fn.Pos()).Name(), lbraceOffset))
+		}
+	}
+
+	if len(code) > 0 {
+		writer.WriteRune('\n')
+		writer.WriteString(code)
+
+		if text[cursor] == ';' {
+			// Keep the semi-colon at the same last line of the last condition block if it was already there in the
+			// previous code.
+		} else {
 			// Add an additional new line to nicely separate the contract conditions from the rest of the code
 			writer.WriteRune('\n')
-		default:
-			panic(fmt.Sprintf("Unexpected rune at the end of the contract condition(s) at offset %d: %c",
-				conditionsEnd, text[conditionsEnd]))
 		}
 	}
 
@@ -486,14 +518,36 @@ func update(text string, updates []funcUpdate, fset *token.FileSet) (updated str
 			return
 		}
 
-		if up.positions.nextNodePos == token.NoPos {
+		switch {
+		case up.positions.nextNodePos == token.NoPos:
 			// The function contains no statements except the conditions so we can simply fill it out.
 
 			cursor = updateEmptyFunc(fset, up, code, writer)
-		} else {
-			// The function contains one or more statements after the contract conditions.
 
-			cursor = updateNonemptyFunc(fset, up, code, text, writer)
+		case fset.Position(up.fn.Body.Lbrace).Line == fset.Position(up.fn.Body.Rbrace).Line:
+			// The function contains statements on the same lines as the braces.
+
+			if up.positions.preStart != token.NoPos {
+				panic(fmt.Sprintf(
+					"Unexpected to have found a precondition block in a single-line function %s at %s:%d",
+					up.fn.Name, fset.File(up.positions.preStart).Name(),
+					fset.Position(up.positions.preStart).Line))
+			}
+
+			if up.positions.postStart != token.NoPos {
+				panic(fmt.Sprintf(
+					"Unexpected to have found a postcondition block in a single-line function %s at %s:%d",
+					up.fn.Name, fset.File(up.positions.postStart).Name(),
+					fset.Position(up.positions.postStart).Line))
+			}
+
+			cursor = updateSingleLineFunc(fset, up, code, text, writer)
+
+		default:
+			// The function contains one or more statements and possibly a previously generated code to
+			// verify contracts.
+
+			cursor = updateMultilineFunc(fset, up, code, text, writer)
 		}
 	}
 
@@ -504,14 +558,14 @@ func update(text string, updates []funcUpdate, fset *token.FileSet) (updated str
 	return
 }
 
-// Process automatically adds (or updates) the blocks for checking the pre- and post-conditions.
+// Process automatically adds (or updates) the blocks for checking the pre and postconditions.
 // If remove is set, the code to check the conditions is removed, but the conditions are left untouched
 // in the comment.
-func Process(text string, remove bool) (updated string, err error) {
+func Process(text string, filename string, remove bool) (updated string, err error) {
 	fset := token.NewFileSet()
 
 	var node *ast.File
-	node, err = parser.ParseFile(fset, "", text, parser.ParseComments)
+	node, err = parser.ParseFile(fset, filename, text, parser.ParseComments)
 	if err != nil {
 		return
 	}
@@ -578,7 +632,7 @@ func ProcessFile(pth string, remove bool) (updated string, err error) {
 
 	text := string(data)
 
-	updated, err = Process(text, remove)
+	updated, err = Process(text, pth, remove)
 	if err != nil {
 		return
 	}
