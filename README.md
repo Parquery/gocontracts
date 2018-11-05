@@ -5,11 +5,11 @@ gocontracts
 [![Go Report Card](https://goreportcard.com/badge/github.com/Parquery/gocontracts)](https://goreportcard.com/report/github.com/Parquery/gocontracts)
 [![godoc](https://img.shields.io/badge/godoc-reference-5272B4.svg)](https://godoc.org/github.com/Parquery/gocontracts/gocontracts)
 
-gocontracts is a tool for 
-[design-by-contract](https://en.wikipedia.org/wiki/Design_by_contract) in Go. 
+gocontracts is a tool for
+[design-by-contract](https://en.wikipedia.org/wiki/Design_by_contract) in Go.
 
-It generates pre- and post-condition checks from the function descriptions so 
-that the contracts are included in the documentation and automatically 
+It generates pre- and post-condition checks from the function descriptions so
+that the contracts are included in the documentation and automatically
 reflected in the code.
 
 (If you need invariants, please let us know by commenting on this issue: https://github.com/Parquery/gocontracts/issues/25.)
@@ -46,7 +46,7 @@ Examples
 Simple Example
 --------------
 
-Given a function with contracts defined in the description, but no checks 
+Given a function with contracts defined in the description, but no checks
 previously written in code:
 
 ```go
@@ -105,8 +105,8 @@ is not smart enough to do that for you.
 
 Conditioning on a Variable
 --------------------------
-Usually, functions either return an error if something went wrong or 
-valid results otherwise. To ensure the contracts conditioned on the error, 
+Usually, functions either return an error if something went wrong or
+valid results otherwise. To ensure the contracts conditioned on the error,
 use implication and write:
 
 ```go
@@ -138,9 +138,9 @@ func (t *Txn) Range() (first int64, last int64, empty bool, err error) {
 }
 ```
 
-Note that conditioning can be seen as logical implication 
-(`A ⇒ B` can be written as `¬A ∨ B`). In the above example, we chained 
-multiple implications as 
+Note that conditioning can be seen as logical implication
+(`A ⇒ B` can be written as `¬A ∨ B`). In the above example, we chained
+multiple implications as
 `err == nil ⇒ (¬ empty ⇒ first ≤ last)`.
 
 Toggling Contracts
@@ -178,10 +178,10 @@ const InTest = true
 const InUTest = true
 ```
 
-Include each of these boolean constants in your contract conditions and `&&` 
-with the condition. 
-For example, this is how you extend the postcondition of the function `Range` 
-written in the previous section to be verified only in _yours_ and _theirs_ 
+Include each of these boolean constants in your contract conditions and `&&`
+with the condition.
+For example, this is how you extend the postcondition of the function `Range`
+written in the previous section to be verified only in _yours_ and _theirs_
 tests, but not in production:
 
 ```go
@@ -194,9 +194,9 @@ func (t *Txn) Range() (first int64, last int64, empty bool, err error) {
 }
 ```
 
-Since constant booleans are placed first in the conjunction, 
-the rest of the condition will not be evaluated incurring thus no 
-computational overhead in the production at runtime. 
+Since constant booleans are placed first in the conjunction,
+the rest of the condition will not be evaluated incurring thus no
+computational overhead in the production at runtime.
 
 Usage
 =====
@@ -213,7 +213,7 @@ You can modify the file in-place by supplying the `-w` argument:
 gocontracts -w /path/to/some/file.go
 ```
 
-If you want to remove the contract checks from the code, supply the 
+If you want to remove the contract checks from the code, supply the
 `-r` argument:
 
 ```bash
@@ -224,7 +224,7 @@ The remove argument is particularly useful when you have a build system
 in place and you want to distinguish between the debug code and the
 release (production) code.
 
-Before building the release code, run the gocontracts with `-r` to remove 
+Before building the release code, run the gocontracts with `-r` to remove
 the checks from the code.
 
 
@@ -243,7 +243,7 @@ You can modify the file in-place by supplying the `-w` argument:
 gocontracts -w /path/to/some/file.go
 ```
 
-If you want to remove the contract checks from the code, supply the 
+If you want to remove the contract checks from the code, supply the
 `-r` argument:
 
 ```bash
@@ -254,7 +254,7 @@ The remove argument is particularly useful when you have a build system
 in place and you want to distinguish between the debug code and the
 release (production) code.
 
-Before building the release code, run the gocontracts with `-r` to remove 
+Before building the release code, run the gocontracts with `-r` to remove
 the checks from the code.
 
 Installation
@@ -293,7 +293,7 @@ git remote add fork https://github.com/YOUR-GITHUB-USERNAME/gocontracts.git
 
 Versioning
 ==========
-We follow [Semantic Versioning](http://semver.org/spec/v1.0.0.html). 
+We follow [Semantic Versioning](http://semver.org/spec/v1.0.0.html).
 The version X.Y.Z indicates:
 
 * X is the major version (backward-incompatible),
