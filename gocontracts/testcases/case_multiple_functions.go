@@ -8,7 +8,7 @@ var MultipleFunctions = Case{
 // SomeFunc does something.
 //
 // SomeFunc requires:
-// * x > 0
+//  * x > 0
 //
 // Some text here.
 func SomeFunc(x int, y int) (result string, err error) {
@@ -19,7 +19,7 @@ func SomeFunc(x int, y int) (result string, err error) {
 // AnotherFunc does something.
 //
 // AnotherFunc requires:
-// * x > 0
+//  * x > 0
 //
 // Some text here.
 func AnotherFunc(x int, y int) (result string, err error) {
@@ -32,7 +32,7 @@ func AnotherFunc(x int, y int) (result string, err error) {
 // SomeFunc does something.
 //
 // SomeFunc requires:
-// * x > 0
+//  * x > 0
 //
 // Some text here.
 func SomeFunc(x int, y int) (result string, err error) {
@@ -48,7 +48,7 @@ func SomeFunc(x int, y int) (result string, err error) {
 // AnotherFunc does something.
 //
 // AnotherFunc requires:
-// * x > 0
+//  * x > 0
 //
 // Some text here.
 func AnotherFunc(x int, y int) (result string, err error) {

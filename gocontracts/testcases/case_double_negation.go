@@ -8,10 +8,10 @@ var DoubleNegation = Case{
 // SomeFunc does something.
 //
 // SomeFunc requires:
-// * !strings.HasPrefix(x, "something")
+//  * !strings.HasPrefix(x, "something")
 //
 // SomeFunc ensures:
-// * !strings.HasSuffix(result, "smth else")
+//  * !strings.HasSuffix(result, "smth else")
 func SomeFunc(x string) (result string, err error) {}
 `,
 	Expected: `package somepkg
@@ -19,10 +19,10 @@ func SomeFunc(x string) (result string, err error) {}
 // SomeFunc does something.
 //
 // SomeFunc requires:
-// * !strings.HasPrefix(x, "something")
+//  * !strings.HasPrefix(x, "something")
 //
 // SomeFunc ensures:
-// * !strings.HasSuffix(result, "smth else")
+//  * !strings.HasSuffix(result, "smth else")
 func SomeFunc(x string) (result string, err error) {
 	// Pre-condition
 	if strings.HasPrefix(x, "something") {

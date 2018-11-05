@@ -55,11 +55,11 @@ package somepackage
 // SomeFunc does something.
 //
 // SomeFunc requires:
-// * x >= 0
-// * x < 100
+//  * x >= 0
+//  * x < 100
 //
 // SomeFunc ensures:
-// * !strings.HasSuffix(result, "smth")
+//  * !strings.HasSuffix(result, "smth")
 func SomeFunc(x int) (result string) {
 	// ...
 }
@@ -73,11 +73,11 @@ package somepackage
 // SomeFunc does something.
 //
 // SomeFunc requires:
-// * x >= 0
-// * x < 100
+//  * x >= 0
+//  * x < 100
 //
 // SomeFunc ensures:
-// * !strings.HasSuffix(result, "smth")
+//  * !strings.HasSuffix(result, "smth")
 func SomeFunc(x int) (result string) {
 	// Pre-conditions
 	switch {
@@ -103,6 +103,10 @@ func SomeFunc(x int) (result string) {
 Note that you have to manually import the `strings` package since goconracts
 is not smart enough to do that for you.
 
+Additionally, if you want to use `go doc`, you have to indent conditions
+with a space in the function description so that `go doc` renders them
+correctly as bullet points.
+
 Conditioning on a Variable
 --------------------------
 Usually, functions either return an error if something went wrong or
@@ -113,7 +117,7 @@ use implication and write:
 // Range returns a range of the timestamps available in the database.
 //
 // Range ensures:
-// * err != nil || (empty || first < last)
+//  * err != nil || (empty || first < last)
 func (t *Txn) Range() (first int64, last int64, empty bool, err error) {
 	// ...
 }
@@ -125,7 +129,7 @@ func (t *Txn) Range() (first int64, last int64, empty bool, err error) {
 // Range returns a range of the timestamps available in the database.
 //
 // Range ensures:
-// * err != nil || (empty || first <= last)
+//  * err != nil || (empty || first <= last)
 func (t *Txn) Range() (first int64, last int64, empty bool, err error) {
 	// Post-condition
 	defer func() {
@@ -188,7 +192,7 @@ tests, but not in production:
 // Range returns a range of the timestamps available in the database.
 //
 // Range ensures:
-// * InTest && (err != nil || (empty || first <= last))
+//  * InTest && (err != nil || (empty || first <= last))
 func (t *Txn) Range() (first int64, last int64, empty bool, err error) {
 	...
 }

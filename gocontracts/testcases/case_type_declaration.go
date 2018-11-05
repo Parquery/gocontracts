@@ -9,7 +9,7 @@ var TypeDeclaration = Case{
 // SomeStruct defines a struct.
 //
 // SomeStruct requires:
-// * x > 3
+//  * x > 3
 type SomeStruct struct {
 	int x
 }
@@ -19,7 +19,7 @@ type SomeStruct struct {
 // SomeStruct defines a struct.
 //
 // SomeStruct requires:
-// * x > 3
+//  * x > 3
 type SomeStruct struct {
 	int x
 }

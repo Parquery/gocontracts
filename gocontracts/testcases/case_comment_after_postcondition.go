@@ -9,12 +9,12 @@ var CommentAfterPostcondition = Case{
 // SomeFunc does something.
 //
 // SomeFunc requires:
-// * x > 0
-// * x < 100
-// * some condition: y > 3
+//  * x > 0
+//  * x < 100
+//  * some condition: y > 3
 //
 // SomeFunc ensures:
-// * strings.HasPrefix(result, "hello")
+//  * strings.HasPrefix(result, "hello")
 //
 // Some text here.
 func SomeFunc(x int, y int) (result string, err error) {
@@ -33,12 +33,12 @@ func SomeFunc(x int, y int) (result string, err error) {
 // SomeFunc does something.
 //
 // SomeFunc requires:
-// * x > 0
-// * x < 100
-// * some condition: y > 3
+//  * x > 0
+//  * x < 100
+//  * some condition: y > 3
 //
 // SomeFunc ensures:
-// * strings.HasPrefix(result, "hello")
+//  * strings.HasPrefix(result, "hello")
 //
 // Some text here.
 func SomeFunc(x int, y int) (result string, err error) {
