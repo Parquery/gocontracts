@@ -8,10 +8,10 @@ var FailureStatementBefore = Failure{
 // SomeFunc does something.
 //
 // SomeFunc requires:
-// * x > 0
+//  * x > 0
 //
 // SomeFunc ensures:
-// * result == "oi"
+//  * result == "oi"
 //
 // Some text here.
 func SomeFunc(x int, y int) (result string, err error) {

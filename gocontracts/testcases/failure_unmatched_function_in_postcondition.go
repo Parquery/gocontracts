@@ -9,7 +9,7 @@ var FailureUnmatchedFunctionInPostcondition = Failure{
 // SomeFunc does something.
 //
 // UnexpectedFunc ensures:
-// * x > 0
+//  * x > 0
 func SomeFunc(x int, y int) (result string, err error) {
 	return
 }

@@ -10,7 +10,7 @@ var RemoveInCodeWithSemicolon = Case{
 // SomeFunc does something.
 //
 // SomeFunc ensures:
-// * strings.HasPrefix(result, "hello")
+//  * strings.HasPrefix(result, "hello")
 //
 // Some text here.
 func SomeFunc(x int, y int) (result string, err error) {
@@ -27,7 +27,7 @@ func SomeFunc(x int, y int) (result string, err error) {
 // SomeFunc does something.
 //
 // SomeFunc ensures:
-// * strings.HasPrefix(result, "hello")
+//  * strings.HasPrefix(result, "hello")
 //
 // Some text here.
 func SomeFunc(x int, y int) (result string, err error) {; return // do something
