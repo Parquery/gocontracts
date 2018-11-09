@@ -231,36 +231,6 @@ release (production) code.
 Before building the release code, run the gocontracts with `-r` to remove
 the checks from the code.
 
-
-Usage
-=====
-Gocontracts reads the Go file and outputs the modified source code to standard
-output:
-
-```bash
-gocontracts /path/to/some/file.go
-```
-
-You can modify the file in-place by supplying the `-w` argument:
-
-```bash
-gocontracts -w /path/to/some/file.go
-```
-
-If you want to remove the contract checks from the code, supply the
-`-r` argument:
-
-```bash
-gocontracts -w -r /path/to/some/file.go
-```
-
-The remove argument is particularly useful when you have a build system
-in place and you want to distinguish between the debug code and the
-release (production) code.
-
-Before building the release code, run the gocontracts with `-r` to remove
-the checks from the code.
-
 Installation
 ============
 We provide x86 Linux binaries in the "Releases" section.
