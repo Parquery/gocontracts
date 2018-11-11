@@ -603,6 +603,12 @@ func Process(text string, filename string, remove bool) (updated string, err err
 			return
 		}
 
+		// Update only if there is something to actually change.
+		if len(pres) == 0 && len(posts) == 0 && positions.preStart == token.NoPos &&
+			positions.postStart == token.NoPos {
+			continue
+		}
+
 		updates = append(updates,
 			funcUpdate{pres: pres, posts: posts, fn: fn, positions: positions})
 	}
