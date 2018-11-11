@@ -14,6 +14,7 @@ import (
 )
 
 var cases = []testcases.Case{
+	testcases.UnchangedIfNoContracts,
 	testcases.NoPreviousConditions,
 	testcases.HasPrecondition,
 	testcases.HasPostcondition,
