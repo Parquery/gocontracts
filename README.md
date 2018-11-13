@@ -164,7 +164,7 @@ const InTest = false
 const InUTest = false
 ```
 
-`contracts_test.go`:
+`contracts_testing.go`:
 ```go
 // +build !prod,test,!utest
 package somepackage
