@@ -321,26 +321,40 @@ func (c condition) ViolationMsg() string {
 	return strconv.Quote(msg)
 }
 
-var notExprWithParensRe = regexp.MustCompile(`^!\s*\((.+)\)$`)
-var exprWithParensRe = regexp.MustCompile(`^\(\s*(.+)\s*\)$`)
+func negateNot(condStr string, unary *ast.UnaryExpr) string {
+	if unary.Op != token.NOT {
+		panic(fmt.Sprintf("Expected NOT operator in the unary expression, but got: %d", unary.Op))
+	}
 
+	parenExpr, isParenExpr := unary.X.(*ast.ParenExpr)
+
+	// Use .Pos() directly since the unary expression was parsed from condStr
+
+	if !isParenExpr {
+		return strings.Trim(condStr[unary.X.Pos()-1:unary.X.End()-1], " \t")
+	}
+
+	return strings.Trim(condStr[parenExpr.X.Pos()-1:parenExpr.X.End()-1], " \t")
+}
+
+// NotCondStr negates the condition and returns it as a string representation of a Go boolean expression.
 func (c condition) NotCondStr() string {
 	if c.condStr == "" {
 		return ""
 	}
 
-	mtch := notExprWithParensRe.FindStringSubmatch(c.condStr)
-	if len(mtch) > 0 {
-		return strings.Trim(mtch[1], " \t")
-	}
+	switch v := c.cond.(type) {
+	case *ast.UnaryExpr:
+		if v.Op == token.NOT {
+			return negateNot(c.condStr, v)
+		}
 
-	if c.condStr[0] == '!' {
-		return strings.Trim(c.condStr[1:], " \t")
-	}
-
-	if exprWithParensRe.MatchString(c.condStr) {
+		return fmt.Sprintf("!(%s)", strings.Trim(c.condStr, " \t"))
+	case *ast.ParenExpr:
 		return fmt.Sprintf("!%s", strings.Trim(c.condStr, " \t"))
 	}
+
+	// TODO(marko): test with other cases
 	return fmt.Sprintf("!(%s)", strings.Trim(c.condStr, " \t"))
 }
 

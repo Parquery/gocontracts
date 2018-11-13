@@ -9,6 +9,7 @@ import (
 
 	"fmt"
 	"github.com/Parquery/gocontracts/gocontracts/testcases"
+	"go/parser"
 	"math/rand"
 	"path/filepath"
 )
@@ -172,10 +173,15 @@ func TestNotCondStr(t *testing.T) {
 		{condStr: "! ( x )", expected: "x"},
 		{condStr: "x", expected: "!(x)"},
 		{condStr: "(x)", expected: "!(x)"},
-		{condStr: "", expected: ""}}
+		{condStr: "!x || y != 3", expected: "!(!x || y != 3)"}}
 
 	for _, tc := range testCases {
-		c := condition{condStr: tc.condStr}
+		expr, err := parser.ParseExpr(tc.condStr)
+		if err != nil {
+			t.Fatalf("Failed to parse the condition string %#v: %s", tc.condStr, err)
+		}
+
+		c := condition{cond: expr, condStr: tc.condStr}
 		got := c.NotCondStr()
 		if got != tc.expected {
 			t.Fatalf("Expected NotCondStr %#v from condStr %#v, got: %#v", tc.expected, tc.condStr, got)
