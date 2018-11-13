@@ -53,7 +53,9 @@ def main() -> int:
                                       universal_newlines=True).strip()
 
     changelog_pth = here / "CHANGELOG.md"
-    changelog_lines = changelog_pth.read_text().splitlines()
+    with changelog_pth.open('rt') as fid:
+        changelog_lines = fid.read().splitlines()
+
     if len(changelog_lines) < 1:
         raise RuntimeError("Expected at least a line in {}, but got: {} line(s)".format(
             changelog_pth, len(changelog_lines)))
