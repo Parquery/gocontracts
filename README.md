@@ -192,7 +192,7 @@ tests, but not in production:
 // Range returns a range of the timestamps available in the database.
 //
 // Range ensures:
-//  * InTest && (err != nil || (empty || first <= last))
+//  * !InTest || (err != nil || (empty || first <= last))
 func (t *Txn) Range() (first int64, last int64, empty bool, err error) {
 	...
 }
