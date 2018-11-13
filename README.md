@@ -158,6 +158,7 @@ The examples of the three files follow.
 `contracts_prod.go`:
 ```go
 // +build prod,!test,!utest
+
 package somepackage
 
 const InTest = false
@@ -167,6 +168,7 @@ const InUTest = false
 `contracts_test.go`:
 ```go
 // +build !prod,test,!utest
+
 package somepackage
 
 const InTest = true
@@ -176,6 +178,7 @@ const InUTest = false
 `contracts_utest.go`:
 ```go
 // +build !prod,!test,utest
+
 package somepackage
 
 const InTest = true
