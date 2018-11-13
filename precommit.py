@@ -12,15 +12,16 @@ def main() -> int:
 
     here = pathlib.Path(".")
 
-    pths = sorted(here.glob("**/*.go"))
+    pths = sorted(here.glob("*.go"))
+
+    for subpth in here.iterdir():
+        if subpth.is_dir() and not subpth.name.startswith('.'):
+            pths.extend(subpth.glob("**/*.go"))
 
     for pth in pths:
-        if "vendor" in here.parents:
-            continue
-
         out = subprocess.check_output(["gofmt", "-s", "-l", pth.as_posix()])
         if len(out) != 0:
-            print("Code was not formatted with gofmt -s -l: {}".format(pth))
+            print("Code was not formatted; gofmt -s -l complains: {}".format(pth))
             return 1
 
     packages = [pathlib.Path(line)
