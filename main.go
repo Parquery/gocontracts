@@ -7,6 +7,7 @@ import (
 	"os"
 )
 
+var version = flag.Bool("version", false, "print the version to STDOUT and exit immediately")
 var inPlace = flag.Bool("w", false, "write result to (source) file instead of stdout")
 var remove = flag.Bool("r", false,
 	"remove the condition checks from the code (but leave them in the comments). "+
@@ -24,6 +25,11 @@ func usage() {
 func main() {
 	os.Exit(func() (retcode int) {
 		flag.Parse()
+
+		if *version {
+			fmt.Println("1.1.2")
+			return 0
+		}
 
 		if flag.NArg() != 1 {
 			_, err := fmt.Fprintf(os.Stderr, "Expected the path to the file as a single positional argument, "+
