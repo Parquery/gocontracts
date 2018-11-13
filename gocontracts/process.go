@@ -354,7 +354,6 @@ func (c condition) NotCondStr() string {
 		return fmt.Sprintf("!%s", strings.Trim(c.condStr, " \t"))
 	}
 
-	// TODO(marko): test with other cases
 	return fmt.Sprintf("!(%s)", strings.Trim(c.condStr, " \t"))
 }
 
