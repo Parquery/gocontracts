@@ -45,7 +45,7 @@ def main() -> int:
 
     bin_path = go_bin_dir / "gocontracts"
 
-    # Get gopath version
+    # Get gocontracts version
     version = subprocess.check_output([bin_path.as_posix(), "-version"], universal_newlines=True).strip()
 
     # Release the binary package
