@@ -249,22 +249,22 @@ Development
 * Fork the repository to your user on Github.
 
 * Get the original repository:
-```bash
-go get github.com/Parquery/gocontracts
-```
+	```bash
+	go get github.com/Parquery/gocontracts
+	```
 
 * Indicate that the local repository is a fork:
-```bash
-cd gocontracts
-git remote add fork https://github.com/YOUR-GITHUB-USERNAME/gocontracts.git
-```
+	```bash
+	cd gocontracts
+	git remote add fork https://github.com/YOUR-GITHUB-USERNAME/gocontracts.git
+	```
 
 * Make your changes.
 
 * Push the changes from the local repository to your remote fork:
- ```bash
- git push fork
- ```
+	 ```bash
+	 git push fork
+	 ```
 
 * Create a pull request on Github and send it for review.
 
