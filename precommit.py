@@ -36,9 +36,6 @@ def main() -> int:
 
     subprocess.check_call(['errcheck'] + [pkg.as_posix() for pkg in packages], cwd=here.as_posix())
 
-    non_test_pths = [pth for pth in pths if not pth.name.endswith("_test.go" or "testcases" in pth.parents)]
-    subprocess.check_call(["gocyclo", "-over", "15"] + [pth.as_posix() for pth in non_test_pths])
-
     for pkg in packages:
         subprocess.check_call(['go', 'test', '-v', '-covermode=count',
                                '-coverprofile=../../../{}/profile.coverprofile'.format(pkg), pkg.as_posix()],

@@ -4,11 +4,11 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"reflect"
 	"testing"
 
 	"fmt"
 	"github.com/Parquery/gocontracts/gocontracts/testcases"
+	"github.com/Parquery/gocontracts/parsecomment"
 	"go/parser"
 	"math/rand"
 	"path/filepath"
@@ -18,6 +18,8 @@ var cases = []testcases.Case{
 	testcases.UnchangedIfNoContracts,
 	testcases.NoPreviousConditions,
 	testcases.HasPrecondition,
+	testcases.HasPreamble,
+	testcases.HasPreambleWithoutStatements,
 	testcases.HasPostcondition,
 	testcases.CurlyBracketsOnSameLine,
 	testcases.OneLineFunction,
@@ -34,18 +36,13 @@ var cases = []testcases.Case{
 	testcases.ConditionsRemovedInComment,
 	testcases.RemoveInCode,
 	testcases.RemoveInCodeOfEmptyFunction,
-	testcases.RemoveInCodeWithSemicolon}
+	testcases.RemoveInCodeWithSemicolon,
+	testcases.FromReadme}
 
 var failures = []testcases.Failure{
-	testcases.FailureStatementInBetween,
-	testcases.FailureStatementBefore,
-	testcases.FailureNoSwitchInPrecondition,
-	testcases.FailureNoIfInPrecondition,
-	testcases.FailureNoDeferInPostcondition,
-	testcases.FailureNoStatementAfterPrecondtion,
-	testcases.FailureNoStatementAfterPostcondtion,
-	testcases.FailureUnmatchedFunctionInPrecondition,
-	testcases.FailureUnmatchedFunctionInPostcondition}
+	testcases.FailureCommentParse,
+	testcases.FailureBodyParse,
+	testcases.FailureUnparsableFile}
 
 // meld runs a meld to compare the expected against the got.
 func meld(expected string, got string) (err error) {
@@ -102,11 +99,11 @@ func lastCommon(expected string, got string) (i int, found bool) {
 func TestProcess(t *testing.T) {
 	for _, cs := range cases {
 		updated, err := Process(cs.Text, cs.ID, cs.Remove)
-		if err != nil {
-			t.Fatalf("Failed at case %s: %s", cs.ID, err.Error())
-		}
 
-		if cs.Expected != updated {
+		switch {
+		case err != nil:
+			t.Errorf("Failed at case %s: %s", cs.ID, err.Error())
+		case cs.Expected != updated:
 			i, found := lastCommon(cs.Expected, updated)
 
 			lastChar := "N/A"
@@ -114,9 +111,14 @@ func TestProcess(t *testing.T) {
 				lastChar = string(cs.Expected[i])
 			}
 
-			t.Fatalf("Failed at case %s: "+
-				"expected (len: %d):\n%s, got (len: %d):\n%s\nLast common character at %d: %s",
+			t.Errorf("Failed at case %s: "+
+				"expected (len: %d):\n"+
+				"%s, got (len: %d):\n"+
+				"%s\n"+
+				"Last common character at %d: %s",
 				cs.ID, len(cs.Expected), cs.Expected, len(updated), updated, i, lastChar)
+		default:
+			// pass
 		}
 	}
 }
@@ -125,37 +127,14 @@ func TestProcessFailures(t *testing.T) {
 	for _, failure := range failures {
 		_, err := Process(failure.Text, failure.ID, false)
 
-		if err == nil {
-			t.Fatalf("Expected an error in the failure case %s, but got nil", failure.ID)
-		}
-
-		if failure.Error != err.Error() {
-			t.Fatalf("Expected a failure error %#v in the failure case %s, "+
+		switch {
+		case err == nil:
+			t.Errorf("Expected an error in the failure case %s, but got nil", failure.ID)
+		case failure.Error != err.Error():
+			t.Errorf("Expected a failure error %#v in the failure case %#v, "+
 				"but got %#v", failure.Error, failure.ID, err.Error())
-		}
-	}
-}
-
-func Test_kBulletRe(t *testing.T) {
-	type bulletCase struct {
-		line            string
-		expectedMatches []string
-	}
-
-	bulletCases := []bulletCase{
-		{line: " * x < 100",
-			expectedMatches: []string{" * x < 100", "", "", "x < 100"}},
-
-		{line: " * some label: x < 100",
-			expectedMatches: []string{" * some label: x < 100", "some label: ", "some label", "x < 100"}},
-
-		{line: " No-bullet text.", expectedMatches: nil}}
-
-	for _, cs := range bulletCases {
-		mtchs := bulletRe.FindStringSubmatch(cs.line)
-
-		if !reflect.DeepEqual(cs.expectedMatches, mtchs) {
-			t.Fatalf("Expected bullet regexp matches %#v, got %#v", cs.expectedMatches, mtchs)
+		default:
+			// pass
 		}
 	}
 }
@@ -172,6 +151,12 @@ func TestNotCondStr(t *testing.T) {
 		{condStr: "!(x)", expected: "x"},
 		{condStr: "! ( x )", expected: "x"},
 		{condStr: "x", expected: "!(x)"},
+
+		// go/parser package can parse this even though it is invalid Go code.
+		// We decided to handle this case gracefully in order not to complicate
+		// the template code.
+		{condStr: "-x", expected: "!(-x)"},
+
 		{condStr: "(x)", expected: "!(x)"},
 		{condStr: "!x || y != 3", expected: "!(!x || y != 3)"}}
 
@@ -181,8 +166,8 @@ func TestNotCondStr(t *testing.T) {
 			t.Fatalf("Failed to parse the condition string %#v: %s", tc.condStr, err)
 		}
 
-		c := condition{cond: expr, condStr: tc.condStr}
-		got := c.NotCondStr()
+		c := parsecomment.Condition{Cond: expr, CondStr: tc.condStr}
+		got := notCondStr(c)
 		if got != tc.expected {
 			t.Fatalf("Expected NotCondStr %#v from condStr %#v, got: %#v", tc.expected, tc.condStr, got)
 		}
@@ -249,7 +234,7 @@ func TestProcessInPlace_Failure(t *testing.T) {
 	}()
 
 	// Pick an arbitrary failure case
-	failure := testcases.FailureUnmatchedFunctionInPostcondition
+	failure := testcases.FailureCommentParse
 
 	pth := filepath.Join(tmpdir, "some_file.go")
 	err = ioutil.WriteFile(pth, []byte(failure.Text), 0600)
