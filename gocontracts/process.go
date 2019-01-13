@@ -111,11 +111,8 @@ var postconditionRe = regexp.MustCompile(`^(Postcondition|Post-condition)s?\s*:?
 //
 // -1 indicate that the block was not found.
 type condPositions struct {
-	preStart token.Pos
-	preEnd   token.Pos
-
-	postStart token.Pos
-	postEnd   token.Pos
+	pre  section
+	post section
 
 	// indicates the position of the first AST node after the contract conditions.
 	// If there are no nodes in the function body after the conditions, nextNodePos is token.NoPos.
@@ -124,14 +121,14 @@ type condPositions struct {
 
 // parsePreconditions parses the pre-conditions defined in the function body.
 func parsePreconditions(
-	fset *token.FileSet, fn *ast.FuncDecl, cmtGrp *ast.CommentGroup) (preStart, preEnd token.Pos, err error) {
+	fset *token.FileSet, fn *ast.FuncDecl, cmtGrp *ast.CommentGroup) (s section, err error) {
 
-	preStart = cmtGrp.Pos()
+	s.start = cmtGrp.Pos()
 
 	cmtText := strings.Trim(cmtGrp.Text(), "\n \t")
 
 	// Check that there are no statements between the pre-condition comment in the function body
-	if len(fn.Body.List) > 0 && fn.Body.List[0].Pos() < preStart {
+	if len(fn.Body.List) > 0 && fn.Body.List[0].Pos() < s.start {
 		err = fmt.Errorf("unexpected statement before the comment %#v in function %s on line %d",
 			cmtText, fn.Name.String(), fset.Position(fn.Body.List[0].Pos()).Line)
 		return
@@ -140,7 +137,7 @@ func parsePreconditions(
 	// Check that there is a block following the comment
 	var stmtAfterCmt ast.Stmt
 	for _, stmt := range fn.Body.List {
-		if stmt.Pos() > preStart {
+		if stmt.Pos() > s.start {
 			stmtAfterCmt = stmt
 			break
 		}
@@ -148,7 +145,7 @@ func parsePreconditions(
 
 	if stmtAfterCmt == nil {
 		err = fmt.Errorf("found no statement after the comment %v in function %s on line %d",
-			cmtText, fn.Name.String(), fset.Position(preStart).Line)
+			cmtText, fn.Name.String(), fset.Position(s.start).Line)
 		return
 	}
 
@@ -177,22 +174,22 @@ func parsePreconditions(
 		panic(fmt.Sprintf("Unhandled comment text: %#v", cmtText))
 	}
 
-	preEnd = stmtAfterCmt.End()
+	s.end = stmtAfterCmt.End()
 
 	return
 }
 
 // parsePostconditions parses the post-conditions defined in the function body.
 func parsePostconditions(
-	fset *token.FileSet, fn *ast.FuncDecl, cmtGrp *ast.CommentGroup) (postStart, postEnd token.Pos, err error) {
-	postStart = cmtGrp.Pos()
+	fset *token.FileSet, fn *ast.FuncDecl, cmtGrp *ast.CommentGroup) (s section, err error) {
+	s.start = cmtGrp.Pos()
 
 	cmtText := strings.Trim(cmtGrp.Text(), "\n \t")
 
 	// Check that there is a defer following the comment
 	var stmtAfterCmt ast.Stmt
 	for _, stmt := range fn.Body.List {
-		if stmt.Pos() > postStart {
+		if stmt.Pos() > s.start {
 			stmtAfterCmt = stmt
 			break
 		}
@@ -211,27 +208,45 @@ func parsePostconditions(
 		return
 	}
 
-	postEnd = deferStmt.End()
+	s.end = deferStmt.End()
 	return
+}
+
+// section defines a section of the tokens belonging to a contract block (e.g., pre-conditions).
+type section struct {
+	// Start of a section.
+	// Start set to token.NoPos means that the section does not appear in the function.
+	start token.Pos
+
+	// End of the section, inclusive
+	end token.Pos
+}
+
+type parsedPositions struct {
+	// Pre-conditions
+	pre section
+
+	// Post-conditions
+	post section
 }
 
 // parseConditions parses the pre and post-conditions from the function body.
 // bodyCmtMap should contain only the comments written in the function body.
 func parseConditions(
 	fset *token.FileSet, fn *ast.FuncDecl,
-	bodyCmtMap ast.CommentMap) (preStart, preEnd, postStart, postEnd token.Pos, err error) {
+	bodyCmtMap ast.CommentMap) (p parsedPositions, err error) {
 
 	for _, cmtGrp := range bodyCmtMap.Comments() {
 		cmtText := strings.Trim(cmtGrp.Text(), "\n \t")
 		switch {
 		case preconditionRe.MatchString(cmtText):
-			preStart, preEnd, err = parsePreconditions(fset, fn, cmtGrp)
+			p.pre, err = parsePreconditions(fset, fn, cmtGrp)
 			if err != nil {
 				return
 			}
 
 		case postconditionRe.MatchString(cmtText):
-			postStart, postEnd, err = parsePostconditions(fset, fn, cmtGrp)
+			p.post, err = parsePostconditions(fset, fn, cmtGrp)
 			if err != nil {
 				return
 			}
@@ -273,12 +288,18 @@ func findBlocks(
 
 	bodyCmtMap := cmtMap.Filter(fn.Body)
 
-	p.preStart, p.preEnd, p.postStart, p.postEnd, err = parseConditions(fset, fn, bodyCmtMap)
+	parsed, err := parseConditions(fset, fn, bodyCmtMap)
+	if err != nil {
+		return
+	}
+
+	p.pre = parsed.pre
+	p.post = parsed.post
 
 	// Check that there are no statements between pre-end and post-start
-	if p.preStart != -1 && p.postStart != -1 {
+	if p.pre.start != -1 && p.post.start != -1 {
 		for _, stmt := range fn.Body.List {
-			if stmt.Pos() >= p.preEnd && stmt.Pos() < p.postStart {
+			if stmt.Pos() >= p.pre.end && stmt.Pos() < p.post.start {
 				err = fmt.Errorf(
 					"unexpected statement between the pre- and post-condition blocks in function %s on line %d",
 					fn.Name.String(), fset.Position(stmt.Pos()).Line)
@@ -289,10 +310,10 @@ func findBlocks(
 
 	conditionsEnd := token.NoPos
 	switch {
-	case p.postEnd != token.NoPos:
-		conditionsEnd = p.postEnd
-	case p.preEnd != token.NoPos:
-		conditionsEnd = p.preEnd
+	case p.post.end != token.NoPos:
+		conditionsEnd = p.post.end
+	case p.pre.end != token.NoPos:
+		conditionsEnd = p.pre.end
 	default:
 		// pass, conditionsEnd is expected to be a NoPos
 	}
@@ -540,18 +561,18 @@ func update(text string, updates []funcUpdate, fset *token.FileSet) (updated str
 		case fset.Position(up.fn.Body.Lbrace).Line == fset.Position(up.fn.Body.Rbrace).Line:
 			// The function contains statements on the same lines as the braces.
 
-			if up.positions.preStart != token.NoPos {
+			if up.positions.pre.start != token.NoPos {
 				panic(fmt.Sprintf(
 					"Unexpected to have found a precondition block in a single-line function %s at %s:%d",
-					up.fn.Name, fset.File(up.positions.preStart).Name(),
-					fset.Position(up.positions.preStart).Line))
+					up.fn.Name, fset.File(up.positions.pre.start).Name(),
+					fset.Position(up.positions.pre.start).Line))
 			}
 
-			if up.positions.postStart != token.NoPos {
+			if up.positions.post.start != token.NoPos {
 				panic(fmt.Sprintf(
 					"Unexpected to have found a postcondition block in a single-line function %s at %s:%d",
-					up.fn.Name, fset.File(up.positions.postStart).Name(),
-					fset.Position(up.positions.postStart).Line))
+					up.fn.Name, fset.File(up.positions.post.start).Name(),
+					fset.Position(up.positions.post.start).Line))
 			}
 
 			cursor = updateSingleLineFunc(fset, up, code, text, writer)
@@ -617,8 +638,8 @@ func Process(text string, filename string, remove bool) (updated string, err err
 		}
 
 		// Update only if there is something to actually change.
-		if len(pres) == 0 && len(posts) == 0 && positions.preStart == token.NoPos &&
-			positions.postStart == token.NoPos {
+		if len(pres) == 0 && len(posts) == 0 && positions.pre.start == token.NoPos &&
+			positions.post.start == token.NoPos {
 			continue
 		}
 
