@@ -52,7 +52,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_dir:
         bin_package_dir = pathlib.Path(tmp_dir) / "gocontracts-{}-linux-x64".format(version)
 
-        target = bin_package_dir / "bin/gocontracts".format(version)
+        target = bin_package_dir / "bin/gocontracts"
         target.parent.mkdir(parents=True)
 
         shutil.copy(bin_path.as_posix(), target.as_posix())
@@ -69,7 +69,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_dir:
         deb_package_dir = pathlib.Path(tmp_dir) / "gocontracts_{}_amd64".format(version)
 
-        target = deb_package_dir / "usr/bin/gocontracts".format(version)
+        target = deb_package_dir / "usr/bin/gocontracts"
         target.parent.mkdir(parents=True)
         shutil.copy(bin_path.as_posix(), target.as_posix())
 
