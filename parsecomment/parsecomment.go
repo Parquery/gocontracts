@@ -3,20 +3,24 @@ package parsecomment
 
 import (
 	"fmt"
-	"go/ast"
-	"go/parser"
 	"regexp"
 	"strings"
 
 	"github.com/Parquery/gocontracts/dedent"
+	"github.com/Parquery/gocontracts/parsecomment/parsecond"
 )
 
-var requiresRe = regexp.MustCompile(`^\s*([a-zA-Z_][a-zA-Z_0-9]*)\s+requires\s*:\s*$`)
-var ensuresRe = regexp.MustCompile(`^\s*([a-zA-Z_][a-zA-Z_0-9]*)\s+ensures\s*:\s*$`)
-var bulletRe = regexp.MustCompile(`\s*\*\s*(([^:]+)\s*:\s*)?(\s*.*\s*)$`)
-var preambleRe = regexp.MustCompile(`^\s*([a-zA-Z_][a-zA-Z_0-9]*)('s)?\s+preamble\s*:\s*$`)
+var requiresRe = regexp.MustCompile(
+	`^\s*([a-zA-Z_][a-zA-Z_0-9]*)\s+requires\s*:\s*$`)
 
-// Line tokens are obtained by tokenizing each line of the the function description as a whole.
+var ensuresRe = regexp.MustCompile(
+	`^\s*([a-zA-Z_][a-zA-Z_0-9]*)\s+ensures\s*:\s*$`)
+
+var preambleRe = regexp.MustCompile(
+	`^\s*([a-zA-Z_][a-zA-Z_0-9]*)('s)?\s+preamble\s*:\s*$`)
+
+// Line tokens are obtained by tokenizing each line of
+// the function description as a whole.
 
 type lineToken interface {
 	text() string
@@ -86,40 +90,10 @@ func tokenizeComment(commentLines []string) (tokens []lineToken) {
 	return
 }
 
-// Condition defines a pre-condition or a post-condition of the function's contract.
-type Condition struct {
-	Label   string
-	CondStr string
-	Cond    ast.Expr
-}
-
-// parseCondition tries to parse the condition from text.
-//
-// If no condition could be parsed, cond is nil.
-// Err is set if the text matched the bullet format, but there was an error parsing the condition
-// as Go code.
-func parseCondition(text string) (cond *Condition, err error) {
-	mtchs := bulletRe.FindStringSubmatch(text)
-	if len(mtchs) > 0 {
-		label := mtchs[2]
-		exprStr := mtchs[3]
-
-		// Check that the condition is parsable
-		var expr ast.Expr
-		expr, err = parser.ParseExpr(exprStr)
-		if err != nil {
-			return
-		}
-
-		cond = &Condition{Label: label, CondStr: exprStr, Cond: expr}
-	}
-	return
-}
-
 // Contract bundles the conditions and the preamble of the function's contract.
 type Contract struct {
-	Pres     []Condition
-	Posts    []Condition
+	Pres     []parsecond.Condition
+	Posts    []parsecond.Condition
 	Preamble string
 }
 
@@ -163,8 +137,8 @@ func ToContract(name string, commentLines []string) (c Contract, err error) {
 		statePreamble = 3
 	)
 
-	c.Pres = make([]Condition, 0, 5)
-	c.Posts = make([]Condition, 0, 5)
+	c.Pres = make([]parsecond.Condition, 0, 5)
+	c.Posts = make([]parsecond.Condition, 0, 5)
 
 	preambleLines := make([]string, 0, 5)
 
@@ -174,7 +148,9 @@ func ToContract(name string, commentLines []string) (c Contract, err error) {
 		switch t := token.(type) {
 		case *requiresToken:
 			if name != t.name {
-				err = fmt.Errorf("expected function name %#v in pre-condition block, but got %#v",
+				err = fmt.Errorf(
+					"expected function name %#v in pre-condition block, "+
+						"but got %#v",
 					name, t.name)
 				return
 			}
@@ -184,7 +160,9 @@ func ToContract(name string, commentLines []string) (c Contract, err error) {
 
 		case *ensuresToken:
 			if name != t.name {
-				err = fmt.Errorf("expected function name %#v in post-condition block, but got %#v",
+				err = fmt.Errorf(
+					"expected function name %#v in post-condition block, "+
+						"but got %#v",
 					name, t.name)
 				return
 			}
@@ -194,7 +172,8 @@ func ToContract(name string, commentLines []string) (c Contract, err error) {
 
 		case *preambleToken:
 			if name != t.name {
-				err = fmt.Errorf("expected function name %#v in preamble block, but got %#v",
+				err = fmt.Errorf(
+					"expected function name %#v in preamble block, but got %#v",
 					name, t.name)
 				return
 			}
@@ -212,10 +191,12 @@ func ToContract(name string, commentLines []string) (c Contract, err error) {
 					// Empty line ends a pre-condition block.
 					state = stateText
 				} else {
-					var cond *Condition
-					cond, err = parseCondition(token.text())
+					var cond *parsecond.Condition
+					cond, err = parsecond.ToCondition(token.text())
 					if err != nil {
-						err = fmt.Errorf("failed to parse a pre-condition: %s", err.Error())
+						err = fmt.Errorf(
+							"failed to parse a pre-condition: %s",
+							err.Error())
 						return
 					}
 					if cond != nil {
@@ -231,10 +212,12 @@ func ToContract(name string, commentLines []string) (c Contract, err error) {
 					// Empty line ends a post-condition block.
 					state = stateText
 				} else {
-					var cond *Condition
-					cond, err = parseCondition(token.text())
+					var cond *parsecond.Condition
+					cond, err = parsecond.ToCondition(token.text())
 					if err != nil {
-						err = fmt.Errorf("failed to parse a post-condition: %s", err.Error())
+						err = fmt.Errorf(
+							"failed to parse a post-condition: %s",
+							err.Error())
 						return
 					}
 					if cond != nil {

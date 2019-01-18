@@ -117,7 +117,15 @@ SomeFunc requires:
 
 	checkFailure(t, "SomeFunc", text,
 		"failed to parse a pre-condition: "+
-			"1:5: expected operand, found 'EOF'")
+			"failed to parse the condition in the following playground:\n"+
+			"package main\n\nfunc main() {\n"+
+			"\tif x == {\n"+
+			"\t\t// Do something\n"+
+			"\t}\n}"+
+			"\n"+
+			"\n"+
+			"The error was: 4:10: expected operand, found '{' "+
+			"(and 7 more errors)")
 }
 
 func TestToContract_FailedToParsePostcondition(t *testing.T) {
@@ -128,5 +136,15 @@ SomeFunc ensures:
 
 	checkFailure(t, "SomeFunc", text,
 		"failed to parse a post-condition: "+
-			"1:5: expected operand, found 'EOF'")
+			"failed to parse the condition in the following playground:\n"+
+			"package main\n"+
+			"\n"+
+			"func main() {\n"+
+			"\tif x == {\n"+
+			"\t\t// Do something\n"+
+			"\t}\n"+
+			"}\n"+
+			"\n"+
+			"The error was: 4:10: expected operand, found '{' "+
+			"(and 7 more errors)")
 }

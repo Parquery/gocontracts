@@ -8,8 +8,7 @@ import (
 
 	"fmt"
 	"github.com/Parquery/gocontracts/gocontracts/testcases"
-	"github.com/Parquery/gocontracts/parsecomment"
-	"go/parser"
+	"github.com/Parquery/gocontracts/parsecomment/parsecond"
 	"math/rand"
 	"path/filepath"
 )
@@ -21,6 +20,7 @@ var cases = []testcases.Case{
 	testcases.HasPreamble,
 	testcases.HasPreambleWithoutStatements,
 	testcases.HasPostcondition,
+	testcases.HasInitialization,
 	testcases.CurlyBracketsOnSameLine,
 	testcases.OneLineFunction,
 	testcases.HasOnlyComment,
@@ -37,7 +37,8 @@ var cases = []testcases.Case{
 	testcases.RemoveInCode,
 	testcases.RemoveInCodeOfEmptyFunction,
 	testcases.RemoveInCodeWithSemicolon,
-	testcases.FromReadme}
+	testcases.FromReadme,
+}
 
 var failures = []testcases.Failure{
 	testcases.FailureCommentParse,
@@ -116,7 +117,8 @@ func TestProcess(t *testing.T) {
 				"%s, got (len: %d):\n"+
 				"%s\n"+
 				"Last common character at %d: %s",
-				cs.ID, len(cs.Expected), cs.Expected, len(updated), updated, i, lastChar)
+				cs.ID, len(cs.Expected), cs.Expected, len(updated), updated, i,
+				lastChar)
 		default:
 			// pass
 		}
@@ -129,10 +131,13 @@ func TestProcessFailures(t *testing.T) {
 
 		switch {
 		case err == nil:
-			t.Errorf("Expected an error in the failure case %s, but got nil", failure.ID)
+			t.Errorf(
+				"Expected an error in the failure case %s, but got nil",
+				failure.ID)
 		case failure.Error != err.Error():
-			t.Errorf("Expected a failure error %#v in the failure case %#v, "+
-				"but got %#v", failure.Error, failure.ID, err.Error())
+			t.Errorf(
+				"Expected a failure error %#v in the failure case %#v, "+
+					"but got %#v", failure.Error, failure.ID, err.Error())
 		default:
 			// pass
 		}
@@ -141,35 +146,47 @@ func TestProcessFailures(t *testing.T) {
 
 func TestNotCondStr(t *testing.T) {
 	type testCase struct {
-		condStr  string
+		// Text of the condition as expected in the function description
+		text string
+
+		// Expected negation of the condition
 		expected string
 	}
 
 	testCases := []testCase{
-		{condStr: "!x", expected: "x"},
-		{condStr: "!  x", expected: "x"},
-		{condStr: "!(x)", expected: "x"},
-		{condStr: "! ( x )", expected: "x"},
-		{condStr: "x", expected: "!(x)"},
+		{text: "* !x", expected: "x"},
+		{text: "* !  x", expected: "x"},
+		{text: "* !(x)", expected: "x"},
+		{text: "* ! ( x )", expected: "x"},
+		{text: "* x", expected: "!x"},
 
 		// go/parser package can parse this even though it is invalid Go code.
 		// We decided to handle this case gracefully in order not to complicate
 		// the template code.
-		{condStr: "-x", expected: "!(-x)"},
+		{text: "* -x", expected: "!(-x)"},
 
-		{condStr: "(x)", expected: "!(x)"},
-		{condStr: "!x || y != 3", expected: "!(!x || y != 3)"}}
+		{text: "* (x)", expected: "!(x)"},
+		{text: "* !x || y != 3", expected: "!(!x || y != 3)"},
+		{text: "* _, ok := someMap[3]; ok", expected: "!ok"},
+	}
 
 	for _, tc := range testCases {
-		expr, err := parser.ParseExpr(tc.condStr)
+		c, err := parsecond.ToCondition(tc.text)
 		if err != nil {
-			t.Fatalf("Failed to parse the condition string %#v: %s", tc.condStr, err)
+			t.Fatalf("Failed to parse the condition string %#v: %s",
+				tc.text, err)
 		}
 
-		c := parsecomment.Condition{Cond: expr, CondStr: tc.condStr}
-		got := notCondStr(c)
+		if c == nil {
+			t.Fatalf("Expected a condition from %#v, but got nil",
+				tc.text)
+		}
+
+		got := notCondStr(*c)
 		if got != tc.expected {
-			t.Fatalf("Expected NotCondStr %#v from condStr %#v, got: %#v", tc.expected, tc.condStr, got)
+			t.Fatalf(
+				"Expected NotCondStr %#v from text %#v, got: %#v",
+				tc.expected, tc.text, got)
 		}
 	}
 }

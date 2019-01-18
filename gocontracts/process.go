@@ -15,6 +15,7 @@ import (
 
 	"github.com/Parquery/gocontracts/parsebody"
 	"github.com/Parquery/gocontracts/parsecomment"
+	"github.com/Parquery/gocontracts/parsecomment/parsecond"
 )
 
 // funcUpdate defines how a function should be updated.
@@ -24,12 +25,21 @@ type funcUpdate struct {
 	contractInBody parsebody.Contract
 }
 
-func violationMsg(c parsecomment.Condition) string {
-	msg := "Violated: "
+func violationMsg(c parsecond.Condition) string {
+	parts := make([]string, 0, 6)
+
+	parts = append(parts, "Violated: ")
+
 	if len(c.Label) > 0 {
-		msg += c.Label + ": "
+		parts = append(parts, fmt.Sprintf("%s: ", c.Label))
 	}
-	msg += c.CondStr
+
+	if len(c.InitStr) > 0 {
+		parts = append(parts, fmt.Sprintf("%s; ", c.InitStr))
+	}
+
+	parts = append(parts, c.CondStr)
+	msg := strings.Join(parts, "")
 
 	return strconv.Quote(msg)
 }
@@ -37,22 +47,27 @@ func violationMsg(c parsecomment.Condition) string {
 func negateNot(condStr string, unary *ast.UnaryExpr) string {
 	if unary.Op != token.NOT {
 		panic(fmt.Sprintf(
-			"Expected NOT operator in the unary expression, but got: %d", unary.Op))
+			"Expected NOT operator in the unary expression, but got: %d",
+			unary.Op))
 	}
 
 	parenExpr, isParenExpr := unary.X.(*ast.ParenExpr)
 
 	// Use .Pos() directly since the unary expression was parsed from condStr
-
 	if !isParenExpr {
-		return strings.Trim(condStr[unary.X.Pos()-1:unary.X.End()-1], " \t")
+		s := unary.X.Pos() - 1
+		e := unary.X.End() - 1
+
+		return strings.Trim(condStr[s:e], " \t")
 	}
 
-	return strings.Trim(condStr[parenExpr.X.Pos()-1:parenExpr.X.End()-1], " \t")
+	s := parenExpr.X.Pos() - 1
+	e := parenExpr.X.End() - 1
+	return strings.Trim(condStr[s:e], " \t")
 }
 
 // notCondStr negates the condition and returns it as a string representation of a Go boolean expression.
-func notCondStr(c parsecomment.Condition) string {
+func notCondStr(c parsecond.Condition) string {
 	switch v := c.Cond.(type) {
 	case *ast.UnaryExpr:
 		if v.Op == token.NOT {
@@ -62,24 +77,36 @@ func notCondStr(c parsecomment.Condition) string {
 		return fmt.Sprintf("!(%s)", strings.Trim(c.CondStr, " \t"))
 	case *ast.ParenExpr:
 		return fmt.Sprintf("!%s", strings.Trim(c.CondStr, " \t"))
+	case *ast.Ident:
+		return fmt.Sprintf("!%s", strings.Trim(c.CondStr, " \t"))
 	}
 
 	return fmt.Sprintf("!(%s)", strings.Trim(c.CondStr, " \t"))
 }
 
+// conditionToCode generates the condition as Golang code to be inserted
+// into "if" and "switch" statements.
+func conditionToCode(c parsecond.Condition) string {
+	if c.InitStr == "" {
+		return notCondStr(c)
+	}
+
+	return fmt.Sprintf("%s; %s", c.InitStr, notCondStr(c))
+}
+
 var tplPre = template.Must(
 	template.New("preconditions").Funcs(
 		template.FuncMap{
-			"violationMsg": violationMsg,
-			"notCondStr":   notCondStr,
+			"violationMsg":    violationMsg,
+			"conditionToCode": conditionToCode,
 		}).Parse(
 		`{{$l := len .Pres }}{{ if eq $l 1 }}{{ $c := index .Pres 0 }}	// Pre-condition
-	if {{ notCondStr $c }} {
+	if {{ conditionToCode $c }} {
 		panic({{ violationMsg $c }})
 	}
 {{- else }}	// Pre-conditions
 	switch { {{- range .Pres }}
-	case {{ notCondStr . }}:
+	case {{ conditionToCode . }}:
 		panic({{ violationMsg . }})
 {{- end }}
 	default:
@@ -90,19 +117,19 @@ var tplPre = template.Must(
 var tplPost = template.Must(
 	template.New("postconditions").Funcs(
 		template.FuncMap{
-			"violationMsg": violationMsg,
-			"notCondStr":   notCondStr,
+			"violationMsg":    violationMsg,
+			"conditionToCode": conditionToCode,
 		}).Parse(
 		`{{$l := len .Posts }}{{ if eq $l 1 }}{{ $c := index .Posts 0 }}	// Post-condition
 	defer func() {
-		if {{ notCondStr $c }} {
+		if {{ conditionToCode $c }} {
 			panic({{ violationMsg $c }})
 		}
 	}()
 {{- else }}	// Post-conditions
 	defer func() {
 		switch { {{- range .Posts }}
-		case {{ notCondStr . }}:
+		case {{ conditionToCode . }}:
 			panic({{ violationMsg . }})
 		{{- end }}
 		default:
