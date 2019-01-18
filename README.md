@@ -147,6 +147,59 @@ Note that conditioning can be seen as logical implication
 multiple implications as
 `err == nil ⇒ (¬ empty ⇒ first ≤ last)`.
 
+State Transitions
+-----------------
+When you want to formally define contracts on state transitions you need 
+to capture the state _before_ and _after_ the function execution. However,
+Gocontract's conventional post-conditions allow you only to access the state
+_afer_ the execution.
+
+In order to capture the state _before_ the execution, you need to write a
+_preamble_. The preamble is a code snippet written in your documentation
+and automatically synced with the function body by gocontracts. The snippet
+must follow the Godoc convetion and be indented with a whitespace (or a tab).
+
+The preamble is executed just after the pre-condition(s) have been verified.
+
+Here is a brief (and admitedly a bit constructed) example 
+with the generated code already included: 
+
+```go
+package somepackage
+
+// increaseFirst increases the first element of the array.
+//
+// increaseFirst requires:
+//  * len(a) > 0
+//
+// increaseFirst preamble:
+//  oldFirst := a[0]
+//
+// increaseFirst ensures:
+//  * a[0] == oldFirst + 1
+func increaseFirst(a []int) {
+	// Pre-condition
+	if !(len(a) > 0) {
+		panic("Violated: len(a) > 0")
+	}
+
+	// Preamble starts.
+	oldFirst := a[0]
+	// Preamble ends.
+
+	// Post-condition
+	defer func() {
+		if !(a[0] == oldFirst + 1) {
+			panic("Violated: a[0] == oldFirst + 1")
+		}
+	}()
+
+	// Implementation
+	a[0]++
+}
+```
+
+
 Toggling Contracts
 ------------------
 When developing a library, it is important to give your users a possibility to toggle families of contracts so that they can adapt _your_ contracts to _their_ use case. For example, some contracts of your library should be verified in testing and in production, some should be verified only in testing of _their_ modules and others should be verified only in _your_ unit tests, but not in _theirs_.

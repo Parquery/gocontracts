@@ -9,342 +9,35 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/Parquery/gocontracts/parsebody"
+	"github.com/Parquery/gocontracts/parsecomment"
 )
-
-var requiresRe = regexp.MustCompile(`^\s*([a-zA-Z_][a-zA-Z_0-9]*)\s+requires\s*:\s*$`)
-var ensuresRe = regexp.MustCompile(`^\s*([a-zA-Z_][a-zA-Z_0-9]*)\s+ensures\s*:\s*$`)
-var bulletRe = regexp.MustCompile(`\s*\*\s*(([^:]+)\s*:\s*)?(\s*.*\s*)$`)
-
-type condition struct {
-	label   string
-	condStr string
-	cond    ast.Expr
-}
-
-func parseContracts(name string, commentLines []string) (pres, posts []condition, err error) {
-	const (
-		stateText = iota
-		stateRequires
-		stateEnsures
-	)
-
-	pres = make([]condition, 0, 5)
-	posts = make([]condition, 0, 5)
-
-	state := stateText
-
-	for _, line := range commentLines {
-		// Ignore empty lines
-		if len(strings.Trim(line, " \t")) == 0 {
-			continue
-		}
-
-		mtchs := requiresRe.FindStringSubmatch(line)
-		if len(mtchs) > 0 {
-			gotName := mtchs[1]
-			if name != gotName {
-				err = fmt.Errorf("expected %#v in \"requires\" line, but got %#v",
-					name, gotName)
-				return
-			}
-
-			state = stateRequires
-			continue
-		}
-
-		mtchs = ensuresRe.FindStringSubmatch(line)
-		if len(mtchs) > 0 {
-			gotName := mtchs[1]
-			if name != gotName {
-				err = fmt.Errorf("expected %#v in \"ensures\" line, but got %#v",
-					name, gotName)
-				return
-			}
-
-			state = stateEnsures
-			continue
-		}
-
-		// Skip all the lines that are not preceded by a requires/ensures marker
-		if state == stateText {
-			continue
-		}
-
-		mtchs = bulletRe.FindStringSubmatch(line)
-		if len(mtchs) > 0 {
-			label := mtchs[2]
-			exprStr := mtchs[3]
-
-			// Check that the condition is parsable
-			var expr ast.Expr
-			expr, err = parser.ParseExpr(exprStr)
-			if err != nil {
-				return
-			}
-
-			cond := condition{label: label, condStr: exprStr, cond: expr}
-
-			switch state {
-			case stateRequires:
-				pres = append(pres, cond)
-			case stateEnsures:
-				posts = append(posts, cond)
-			case stateText:
-				panic("expected to continue before if state == stateText, but got here")
-			}
-		} else {
-			// If a line does not match the bullet pattern, assume a text paragraph starts
-			state = stateText
-		}
-	}
-	return
-}
-
-var preconditionRe = regexp.MustCompile(`^(Precondition|Pre-condition)s?\s*:?`)
-var postconditionRe = regexp.MustCompile(`^(Postcondition|Post-condition)s?\s*:?`)
-
-// condPositions indicates the start and the end positions of the condition blocks.
-//
-// -1 indicate that the block was not found.
-type condPositions struct {
-	pre  section
-	post section
-
-	// indicates the position of the first AST node after the contract conditions.
-	// If there are no nodes in the function body after the conditions, nextNodePos is token.NoPos.
-	nextNodePos token.Pos
-}
-
-// parsePreconditions parses the pre-conditions defined in the function body.
-func parsePreconditions(
-	fset *token.FileSet, fn *ast.FuncDecl, cmtGrp *ast.CommentGroup) (s section, err error) {
-
-	s.start = cmtGrp.Pos()
-
-	cmtText := strings.Trim(cmtGrp.Text(), "\n \t")
-
-	// Check that there are no statements between the pre-condition comment in the function body
-	if len(fn.Body.List) > 0 && fn.Body.List[0].Pos() < s.start {
-		err = fmt.Errorf("unexpected statement before the comment %#v in function %s on line %d",
-			cmtText, fn.Name.String(), fset.Position(fn.Body.List[0].Pos()).Line)
-		return
-	}
-
-	// Check that there is a block following the comment
-	var stmtAfterCmt ast.Stmt
-	for _, stmt := range fn.Body.List {
-		if stmt.Pos() > s.start {
-			stmtAfterCmt = stmt
-			break
-		}
-	}
-
-	if stmtAfterCmt == nil {
-		err = fmt.Errorf("found no statement after the comment %v in function %s on line %d",
-			cmtText, fn.Name.String(), fset.Position(s.start).Line)
-		return
-	}
-
-	switch {
-	case strings.HasPrefix(cmtText, "Pre-conditions"):
-		// Expect multiple pre-conditions given the comment and hence a switch
-		_, ok := stmtAfterCmt.(*ast.SwitchStmt)
-
-		if !ok {
-			err = fmt.Errorf(
-				"expected a 'switch' statement after the comment %#v in function %s on line %d",
-				cmtText, fn.Name.String(), fset.Position(stmtAfterCmt.Pos()).Line)
-			return
-		}
-
-	case strings.HasPrefix(cmtText, "Pre-condition"):
-		// Expect a single pre-condition given the comment and hence a
-		_, ok := stmtAfterCmt.(*ast.IfStmt)
-		if !ok {
-			err = fmt.Errorf(
-				"expected an 'if' statement after the comment %#v in function %s on line %d",
-				cmtText, fn.Name.String(), fset.Position(stmtAfterCmt.Pos()).Line)
-			return
-		}
-	default:
-		panic(fmt.Sprintf("Unhandled comment text: %#v", cmtText))
-	}
-
-	s.end = stmtAfterCmt.End()
-
-	return
-}
-
-// parsePostconditions parses the post-conditions defined in the function body.
-func parsePostconditions(
-	fset *token.FileSet, fn *ast.FuncDecl, cmtGrp *ast.CommentGroup) (s section, err error) {
-	s.start = cmtGrp.Pos()
-
-	cmtText := strings.Trim(cmtGrp.Text(), "\n \t")
-
-	// Check that there is a defer following the comment
-	var stmtAfterCmt ast.Stmt
-	for _, stmt := range fn.Body.List {
-		if stmt.Pos() > s.start {
-			stmtAfterCmt = stmt
-			break
-		}
-	}
-
-	if stmtAfterCmt == nil {
-		err = fmt.Errorf("found no statement after the comment %#v in function %s on line %d",
-			cmtText, fn.Name.String(), fset.Position(cmtGrp.Pos()).Line)
-		return
-	}
-
-	deferStmt, ok := stmtAfterCmt.(*ast.DeferStmt)
-	if !ok {
-		err = fmt.Errorf("expected a defer statement after the comment %#v in function %s on line %d",
-			cmtText, fn.Name.String(), fset.Position(stmtAfterCmt.Pos()).Line)
-		return
-	}
-
-	s.end = deferStmt.End()
-	return
-}
-
-// section defines a section of the tokens belonging to a contract block (e.g., pre-conditions).
-type section struct {
-	// Start of a section.
-	// Start set to token.NoPos means that the section does not appear in the function.
-	start token.Pos
-
-	// End of the section, inclusive
-	end token.Pos
-}
-
-type parsedPositions struct {
-	// Pre-conditions
-	pre section
-
-	// Post-conditions
-	post section
-}
-
-// parseConditions parses the pre and post-conditions from the function body.
-// bodyCmtMap should contain only the comments written in the function body.
-func parseConditions(
-	fset *token.FileSet, fn *ast.FuncDecl,
-	bodyCmtMap ast.CommentMap) (p parsedPositions, err error) {
-
-	for _, cmtGrp := range bodyCmtMap.Comments() {
-		cmtText := strings.Trim(cmtGrp.Text(), "\n \t")
-		switch {
-		case preconditionRe.MatchString(cmtText):
-			p.pre, err = parsePreconditions(fset, fn, cmtGrp)
-			if err != nil {
-				return
-			}
-
-		case postconditionRe.MatchString(cmtText):
-			p.post, err = parsePostconditions(fset, fn, cmtGrp)
-			if err != nil {
-				return
-			}
-
-		default:
-			// pass
-		}
-	}
-
-	return
-}
-
-func findNextNodePos(bodyCmtMap ast.CommentMap, body *ast.BlockStmt, conditionsEnd token.Pos) (nextNodePos token.Pos) {
-	nextNodePos = token.NoPos
-
-	for _, stmt := range body.List {
-		if stmt.Pos() > conditionsEnd {
-			nextNodePos = stmt.Pos()
-			break
-		}
-	}
-
-	// See if there is a comment before the conditions and the first next statement
-	for _, cmtGrp := range bodyCmtMap.Comments() {
-		if cmtGrp.Pos() > conditionsEnd &&
-			(nextNodePos == token.NoPos || cmtGrp.Pos() < nextNodePos) {
-
-			nextNodePos = cmtGrp.Pos()
-			break
-		}
-	}
-
-	return
-}
-
-// findBlocks searches for the start and end of the pre-condition and post-condition block, respectively.
-func findBlocks(
-	fset *token.FileSet, fn *ast.FuncDecl, cmtMap ast.CommentMap) (p condPositions, err error) {
-
-	bodyCmtMap := cmtMap.Filter(fn.Body)
-
-	parsed, err := parseConditions(fset, fn, bodyCmtMap)
-	if err != nil {
-		return
-	}
-
-	p.pre = parsed.pre
-	p.post = parsed.post
-
-	// Check that there are no statements between pre-end and post-start
-	if p.pre.start != -1 && p.post.start != -1 {
-		for _, stmt := range fn.Body.List {
-			if stmt.Pos() >= p.pre.end && stmt.Pos() < p.post.start {
-				err = fmt.Errorf(
-					"unexpected statement between the pre- and post-condition blocks in function %s on line %d",
-					fn.Name.String(), fset.Position(stmt.Pos()).Line)
-				return
-			}
-		}
-	}
-
-	conditionsEnd := token.NoPos
-	switch {
-	case p.post.end != token.NoPos:
-		conditionsEnd = p.post.end
-	case p.pre.end != token.NoPos:
-		conditionsEnd = p.pre.end
-	default:
-		// pass, conditionsEnd is expected to be a NoPos
-	}
-
-	// Find the next node in statements
-	p.nextNodePos = findNextNodePos(bodyCmtMap, fn.Body, conditionsEnd)
-
-	return
-}
 
 // funcUpdate defines how a function should be updated.
 type funcUpdate struct {
-	pres      []condition
-	posts     []condition
-	fn        *ast.FuncDecl
-	positions condPositions
+	contractInDoc  parsecomment.Contract
+	fn             *ast.FuncDecl
+	contractInBody parsebody.Contract
 }
 
-func (c condition) ViolationMsg() string {
+func violationMsg(c parsecomment.Condition) string {
 	msg := "Violated: "
-	if len(c.label) > 0 {
-		msg += c.label + ": "
+	if len(c.Label) > 0 {
+		msg += c.Label + ": "
 	}
-	msg += c.condStr
+	msg += c.CondStr
 
 	return strconv.Quote(msg)
 }
 
 func negateNot(condStr string, unary *ast.UnaryExpr) string {
 	if unary.Op != token.NOT {
-		panic(fmt.Sprintf("Expected NOT operator in the unary expression, but got: %d", unary.Op))
+		panic(fmt.Sprintf(
+			"Expected NOT operator in the unary expression, but got: %d", unary.Op))
 	}
 
 	parenExpr, isParenExpr := unary.X.(*ast.ParenExpr)
@@ -358,53 +51,59 @@ func negateNot(condStr string, unary *ast.UnaryExpr) string {
 	return strings.Trim(condStr[parenExpr.X.Pos()-1:parenExpr.X.End()-1], " \t")
 }
 
-// NotCondStr negates the condition and returns it as a string representation of a Go boolean expression.
-func (c condition) NotCondStr() string {
-	if c.condStr == "" {
-		return ""
-	}
-
-	switch v := c.cond.(type) {
+// notCondStr negates the condition and returns it as a string representation of a Go boolean expression.
+func notCondStr(c parsecomment.Condition) string {
+	switch v := c.Cond.(type) {
 	case *ast.UnaryExpr:
 		if v.Op == token.NOT {
-			return negateNot(c.condStr, v)
+			return negateNot(c.CondStr, v)
 		}
 
-		return fmt.Sprintf("!(%s)", strings.Trim(c.condStr, " \t"))
+		return fmt.Sprintf("!(%s)", strings.Trim(c.CondStr, " \t"))
 	case *ast.ParenExpr:
-		return fmt.Sprintf("!%s", strings.Trim(c.condStr, " \t"))
+		return fmt.Sprintf("!%s", strings.Trim(c.CondStr, " \t"))
 	}
 
-	return fmt.Sprintf("!(%s)", strings.Trim(c.condStr, " \t"))
+	return fmt.Sprintf("!(%s)", strings.Trim(c.CondStr, " \t"))
 }
 
-var tplPre = template.Must(template.New("preconditions").Parse(
-	`{{$l := len .Pres }}{{ if eq $l 1 }}{{ $c := index .Pres 0 }}	// Pre-condition
-	if {{ $c.NotCondStr }} {
-		panic({{ $c.ViolationMsg }})
+var tplPre = template.Must(
+	template.New("preconditions").Funcs(
+		template.FuncMap{
+			"violationMsg": violationMsg,
+			"notCondStr":   notCondStr,
+		}).Parse(
+		`{{$l := len .Pres }}{{ if eq $l 1 }}{{ $c := index .Pres 0 }}	// Pre-condition
+	if {{ notCondStr $c }} {
+		panic({{ violationMsg $c }})
 	}
 {{- else }}	// Pre-conditions
 	switch { {{- range .Pres }}
-	case {{ .NotCondStr }}:
-		panic({{ .ViolationMsg }})
+	case {{ notCondStr . }}:
+		panic({{ violationMsg . }})
 {{- end }}
 	default:
 		// Pass
 	}
 {{- end }}`))
 
-var tplPost = template.Must(template.New("postconditions").Parse(
-	`{{$l := len .Posts }}{{ if eq $l 1 }}{{ $c := index .Posts 0 }}	// Post-condition
+var tplPost = template.Must(
+	template.New("postconditions").Funcs(
+		template.FuncMap{
+			"violationMsg": violationMsg,
+			"notCondStr":   notCondStr,
+		}).Parse(
+		`{{$l := len .Posts }}{{ if eq $l 1 }}{{ $c := index .Posts 0 }}	// Post-condition
 	defer func() {
-		if {{ $c.NotCondStr }} {
-			panic({{ $c.ViolationMsg }})
+		if {{ notCondStr $c }} {
+			panic({{ violationMsg $c }})
 		}
 	}()
 {{- else }}	// Post-conditions
 	defer func() {
 		switch { {{- range .Posts }}
-		case {{ .NotCondStr }}:
-			panic({{ .ViolationMsg }})
+		case {{ notCondStr . }}:
+			panic({{ violationMsg . }})
 		{{- end }}
 		default:
 			// Pass
@@ -416,14 +115,19 @@ var tplPost = template.Must(template.New("postconditions").Parse(
 //
 // The first line of generated code is indented.
 // The generated code does not end with a new-line character.
-func generateCode(pres []condition, posts []condition) (code string, err error) {
+func generateCode(contract parsecomment.Contract) (code string, err error) {
+	// Post-condition
+	defer func() {
+		if strings.HasSuffix(code, "\n") {
+			panic("Violated: strings.HasSuffix(code, \"\\n\")")
+		}
+	}()
+
 	blocks := []string{}
 
-	if len(pres) > 0 {
-		data := struct{ Pres []condition }{Pres: pres}
-
+	if len(contract.Pres) > 0 {
 		var buf bytes.Buffer
-		err = tplPre.Execute(&buf, data)
+		err = tplPre.Execute(&buf, contract)
 		if err != nil {
 			return
 		}
@@ -431,11 +135,26 @@ func generateCode(pres []condition, posts []condition) (code string, err error) 
 		blocks = append(blocks, buf.String())
 	}
 
-	if len(posts) > 0 {
-		data := struct{ Posts []condition }{Posts: posts}
-
+	if len(contract.Preamble) > 0 {
+		// Since Golang package text/template does not contain "indent" filter,
+		// we manually indent the code and do not use a template here.
 		var buf bytes.Buffer
-		err = tplPost.Execute(&buf, data)
+		buf.WriteString("\t// Preamble starts.\n")
+
+		lines := strings.Split(contract.Preamble, "\n")
+		for _, line := range lines {
+			buf.WriteString("\t")
+			buf.WriteString(line)
+			buf.WriteString("\n")
+		}
+
+		buf.WriteString("\t// Preamble ends.")
+		blocks = append(blocks, buf.String())
+	}
+
+	if len(contract.Posts) > 0 {
+		var buf bytes.Buffer
+		err = tplPost.Execute(&buf, contract)
 		if err != nil {
 			return
 		}
@@ -483,7 +202,7 @@ func updateSingleLineFunc(
 
 		// Write the function body
 
-		fstStmtOffset := fset.Position(up.positions.nextNodePos).Offset
+		fstStmtOffset := fset.Position(up.contractInBody.NextNodePos).Offset
 
 		writer.WriteString(strings.TrimRight(text[fstStmtOffset:rbraceOffset], "\t "))
 
@@ -506,7 +225,7 @@ func updateMultilineFunc(
 
 	lbraceOffset := fset.Position(up.fn.Body.Lbrace).Offset
 
-	cursor = fset.Position(up.positions.nextNodePos).Offset
+	cursor = fset.Position(up.contractInBody.NextNodePos).Offset
 
 	// Go back in order to include a farthest possible end of the last condition block
 	for text[cursor] != '\n' && text[cursor] != ';' {
@@ -547,13 +266,13 @@ func update(text string, updates []funcUpdate, fset *token.FileSet) (updated str
 		writer.WriteString(text[cursor : lbraceOffset+1])
 
 		var code string
-		code, err = generateCode(up.pres, up.posts)
+		code, err = generateCode(up.contractInDoc)
 		if err != nil {
 			return
 		}
 
 		switch {
-		case up.positions.nextNodePos == token.NoPos:
+		case up.contractInBody.NextNodePos == token.NoPos:
 			// The function contains no statements except the conditions so we can simply fill it out.
 
 			cursor = updateEmptyFunc(fset, up, code, writer)
@@ -561,18 +280,12 @@ func update(text string, updates []funcUpdate, fset *token.FileSet) (updated str
 		case fset.Position(up.fn.Body.Lbrace).Line == fset.Position(up.fn.Body.Rbrace).Line:
 			// The function contains statements on the same lines as the braces.
 
-			if up.positions.pre.start != token.NoPos {
+			// Assert
+			if up.contractInBody.Start != token.NoPos {
 				panic(fmt.Sprintf(
-					"Unexpected to have found a precondition block in a single-line function %s at %s:%d",
-					up.fn.Name, fset.File(up.positions.pre.start).Name(),
-					fset.Position(up.positions.pre.start).Line))
-			}
-
-			if up.positions.post.start != token.NoPos {
-				panic(fmt.Sprintf(
-					"Unexpected to have found a postcondition block in a single-line function %s at %s:%d",
-					up.fn.Name, fset.File(up.positions.post.start).Name(),
-					fset.Position(up.positions.post.start).Line))
+					"unexpected contract in a single-line function %s at %s:%d",
+					up.fn.Name, fset.File(up.contractInBody.Start).Name(),
+					fset.Position(up.contractInBody.Start).Line))
 			}
 
 			cursor = updateSingleLineFunc(fset, up, code, text, writer)
@@ -614,14 +327,17 @@ func Process(text string, filename string, remove bool) (updated string, err err
 			continue
 		}
 
+		////
+		// Parse comment
+		////
+
 		name := fn.Name.Name
 		commentLines := strings.Split(fn.Doc.Text(), "\n")
 
-		var pres []condition
-		var posts []condition
+		var contractInDoc parsecomment.Contract
 
 		if !remove {
-			pres, posts, err = parseContracts(name, commentLines)
+			contractInDoc, err = parsecomment.ToContract(name, commentLines)
 			if err != nil {
 				err = fmt.Errorf("failed to parse comments of the function %s on line %d: %s",
 					name, fset.Position(fn.Doc.Pos()).Line, err)
@@ -631,20 +347,36 @@ func Process(text string, filename string, remove bool) (updated string, err err
 			// Remove is true, hence leave the pre and postconditions empty.
 		}
 
-		var positions condPositions
-		positions, err = findBlocks(fset, fn, cmtMap)
+		////
+		// Parse body
+		////
+
+		bodyCmtMap := cmtMap.Filter(fn.Body)
+
+		var contractInBody parsebody.Contract
+		contractInBody, err = parsebody.ToContract(fset, fn, bodyCmtMap)
 		if err != nil {
 			return
 		}
 
+		////
+		// Specify the update
+		////
+
 		// Update only if there is something to actually change.
-		if len(pres) == 0 && len(posts) == 0 && positions.pre.start == token.NoPos &&
-			positions.post.start == token.NoPos {
+		if len(contractInDoc.Pres) == 0 &&
+			len(contractInDoc.Preamble) == 0 &&
+			len(contractInDoc.Posts) == 0 &&
+			contractInBody.Start == token.NoPos {
 			continue
 		}
 
 		updates = append(updates,
-			funcUpdate{pres: pres, posts: posts, fn: fn, positions: positions})
+			funcUpdate{
+				contractInDoc:  contractInDoc,
+				fn:             fn,
+				contractInBody: contractInBody,
+			})
 	}
 
 	if len(updates) == 0 {
