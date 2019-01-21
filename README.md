@@ -161,7 +161,7 @@ must follow the Godoc convetion and be indented with a whitespace (or a tab).
 
 The preamble is executed just after the pre-condition(s) have been verified.
 
-Here is a brief (and admitedly a bit constructed) example 
+Here is a brief (and admittedly a bit constructed) example 
 with the generated code already included: 
 
 ```go
