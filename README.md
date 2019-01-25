@@ -12,8 +12,6 @@ It generates pre- and post-condition checks from the function descriptions so
 that the contracts are included in the documentation and automatically
 reflected in the code.
 
-(If you need invariants, please let us know by commenting on this issue: https://github.com/Parquery/gocontracts/issues/25.)
-
 Workflow
 --------
 You invoke gocontracts on an individual Go file. Gocontracts will parse the file
