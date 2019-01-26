@@ -121,7 +121,6 @@ package somepkg
 // SomeFunc requires:
 //  * positive: x > 0
 //  * not too large: x < 100
-//  * some condition: y > 3
 func SomeFunc(x int, y int) (result string, err error) {
 	// Pre-conditions
 	switch {
@@ -129,8 +128,6 @@ func SomeFunc(x int, y int) (result string, err error) {
 		panic("Violated: positive: x > 0")
 	case !(x < 100):
 		panic("Violated: not too large: x < 100")
-	case !(y > 3):
-		panic("Violated: some condition: y > 3")
 	default:
 		// Pass
 	}
