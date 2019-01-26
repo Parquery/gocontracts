@@ -1,3 +1,9 @@
+1.3.0
+=====
+* Added support for initialization in conditions
+* Added support for preambles
+* Refactored code into separate modules, improved test coverage
+
 1.2.0
 =====
 * Added a release script 
