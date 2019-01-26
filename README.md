@@ -107,6 +107,80 @@ Additionally, if you want to use `go doc`, you have to indent conditions
 with a space in the function description so that `go doc` renders them
 correctly as bullet points.
 
+Condition Labels
+----------------
+Certain conditions can be hard to understand when the formal definition lacks
+a textual description. Gocontracts therefore allows you to introduce 
+condition labels to clarify the intent:
+
+```go
+package somepkg
+
+// SomeFunc does something.
+//
+// SomeFunc requires:
+//  * positive: x > 0
+//  * not too large: x < 100
+//  * some condition: y > 3
+func SomeFunc(x int, y int) (result string, err error) {
+	// Pre-conditions
+	switch {
+	case !(x > 0):
+		panic("Violated: positive: x > 0")
+	case !(x < 100):
+		panic("Violated: not too large: x < 100")
+	case !(y > 3):
+		panic("Violated: some condition: y > 3")
+	default:
+		// Pass
+	}
+	
+	// ...
+}
+```
+
+Since we need to distinguish the condition labels from the condition
+code, we had to restrict the labels to strings of characters 
+`[a-zA-Z0-9_;.\-=' ]`. Otherwise, if we allowed a full character set,
+there would be ambiguities between the label and the code.
+
+(We decided against clutter in the documentation such as Go string literals.
+It is our hope that restricted character set should suit 
+99% use cases out there. Please let us know if this is not the case.
+See also 
+https://github.com/golang/go/issues/16666 .)
+
+Condition Initialization
+------------------------
+Go allows you to initialize a condition and execute a simple statement before
+ the check. For example, the initialization is common when checking if an
+ item belongs to a map:
+ 
+```go
+if _, ok := someMap[3]; ok {
+	...
+}
+```
+
+Following Go, Gocontracts also allows you to include the initialization in
+the condition. The following code snippet shows you how to document 
+the initialization and what Gocontracts generates:
+
+```go
+// SomeFunc does something.
+//
+// SomeFunc requires:
+//  * _, ok := someMap[3]; ok
+func SomeFunc(someMap map[string]bool) {
+	// Pre-condition
+	if _, ok := someMap[3]; !ok {
+		panic("Violated: _, ok := someMap[3]; ok")
+	}
+
+	// ...
+}
+``` 
+
 Conditioning on a Variable
 --------------------------
 Usually, functions either return an error if something went wrong or
